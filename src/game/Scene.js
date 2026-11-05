@@ -10,6 +10,7 @@ import {
   Scene as ThreeScene,
 } from 'three';
 import { Player } from './Player.js';
+import { Kitchen } from './Kitchen.js';
 
 export class Scene {
   constructor() {
@@ -33,10 +34,31 @@ export class Scene {
     };
     this.createFloor();
     this.createWalls();
-    // Os limites incluem apenas a arquitetura, sem a posição das luzes.
+    this.collisionBounds = Object.freeze({
+      minX: -this.dimensions.width / 2, maxX: this.dimensions.width / 2,
+      minZ: -this.dimensions.depth / 2, maxZ: this.dimensions.depth / 2,
+    });
+    // Volumes sólidos na altura do corpo. Travessas e painéis elevados são decorativos.
+    this.collisionObstacles = [];
+    this.architecture.updateMatrixWorld(true);
+    for (const object of this.architecture.children) {
+      if (!/^(back-wall|left-wall|right-low-wall|.*-skirting|back-post-.*|left-post-.*|right-wall-cap)$/.test(object.name)) continue;
+      const box = new Box3().setFromObject(object);
+      this.collisionObstacles.push({ id: object.name, bounds: {
+        minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z,
+      } });
+    }
+    // Limite lógico da frente aberta, sem adicionar parede visível.
+    this.collisionObstacles.push({ id: 'front-boundary', position: { x: 0, z: this.dimensions.depth / 2 + 0.1 },
+      width: this.dimensions.width + 0.4, depth: 0.2 });
+    this.kitchen = new Kitchen();
+    this.scene.add(this.kitchen.group);
+    this.collisionObstacles.push(...this.kitchen.colliders);
+    // Enquadramento da arquitetura e dos equipamentos, sem a posição das luzes.
     this.bounds = new Box3().setFromObject(this.architecture);
+    this.bounds.union(new Box3().setFromObject(this.kitchen.group));
     this.createLighting();
-    this.player = new Player();
+    this.player = new Player({ position: this.kitchen.spawnPosition });
     this.scene.add(this.player.group);
   }
 
@@ -128,8 +150,8 @@ export class Scene {
     this.scene.add(sunlight);
   }
 
-  update(deltaTime, direction = null) {
-    this.player.update(deltaTime, direction);
+  update(deltaTime, direction = null, dashPressed = false) {
+    this.player.update(deltaTime, direction, dashPressed);
   }
 
   dispose() {

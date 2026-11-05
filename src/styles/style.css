@@ -21,3 +21,157 @@ canvas {
   width: 100%;
   height: 100%;
 }
+
+#app {
+  position: relative;
+}
+
+.interaction-ui {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+  font: 600 15px/1.4 system-ui, sans-serif;
+  color: #614b50;
+}
+
+.interaction-ui [hidden] {
+  display: none;
+}
+
+.interaction-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 17px 9px 10px;
+  border: 2px solid #e8bdca;
+  border-radius: 18px;
+  background: #fff8ee;
+  box-shadow: 0 4px 14px #8b617226;
+}
+
+.interaction-hint kbd {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  flex-shrink: 0;
+  border: 1px solid #dbb0bf;
+  border-bottom-width: 3px;
+  border-radius: 9px;
+  background: #f7dfe6;
+  font: inherit;
+}
+
+.interaction-hint[data-available='false'] {
+  color: #796d71;
+  border-color: #d9cdd0;
+  background: #faf4f1;
+}
+
+.interaction-feedback {
+  max-width: 100%;
+  padding: 8px 14px;
+  border: 1px solid #c9d9cc;
+  border-radius: 14px;
+  background: #f2f8ef;
+  font-size: 13px;
+  text-align: center;
+  box-shadow: 0 3px 12px #61725b1a;
+}
+
+.rice-cooker-status,
+.cutting-status {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 120px;
+  padding: 7px 9px;
+  border: 1px solid #dcc1ae;
+  border-radius: 13px;
+  background: #fff8ee;
+  color: #65534b;
+  box-shadow: 0 3px 10px #765b4220;
+  font: 600 11px/1.35 system-ui, sans-serif;
+  text-align: center;
+  pointer-events: none;
+}
+
+.rice-cooker-status[hidden],
+.rice-cooker-status [hidden],
+.cutting-status[hidden],
+.cutting-status [hidden] {
+  display: none;
+}
+
+.rice-cooker-progress,
+.cutting-progress {
+  height: 7px;
+  margin-top: 5px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #eedee0;
+}
+
+.rice-cooker-progress-fill,
+.cutting-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #dfafbe;
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.rice-cooker-detail,
+.cutting-detail {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.rice-cooker-status[data-state='READY'],
+.cutting-status[data-state='READY'] {
+  border-color: #b6cda9;
+  background: #f0f7eb;
+  color: #4f7146;
+}
+
+.rice-cooker-status[data-state='BURNT'] {
+  border-color: #d3a29e;
+  background: #fbece9;
+  color: #915754;
+}
+
+.assembly-panel {
+  position: absolute;
+  left: 16px;
+  bottom: 84px;
+  width: min(265px, calc(100vw - 52px));
+  padding: 12px 14px;
+  border: 1px solid #dfb9c0;
+  border-radius: 16px;
+  background: #fff8efed;
+  color: #70534f;
+  font: 12px/1.5 system-ui, sans-serif;
+  box-shadow: 0 4px 18px #79545414;
+  pointer-events: none;
+}
+.assembly-panel[hidden], .assembly-panel [hidden] { display: none; }
+.assembly-panel strong { font-size: 14px; }
+.assembly-panel p { margin: 5px 0; }
+.assembly-panel progress {
+  display: block;
+  width: 100%;
+  height: 7px;
+  margin-top: 5px;
+  accent-color: #cf9caa;
+}

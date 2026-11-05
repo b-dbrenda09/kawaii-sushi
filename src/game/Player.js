@@ -4,25 +4,57 @@ import {
   Group,
   Mesh,
   MeshStandardMaterial,
+  MeshBasicMaterial,
+  Box3,
   Shape,
   SphereGeometry,
   TubeGeometry,
   Vector3,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { CollisionSystem } from './CollisionSystem.js';
 
 // Frente do modelo em +Z, pés em Y = 0. Não depende da orientação da câmera.
 export class Player {
-  constructor({ position = new Vector3(0, 0, 1), rotation = Math.PI / 4 } = {}) {
+  constructor({ position = new Vector3(0, 0, 1), rotation = Math.PI / 4,
+    movementBounds = null, collisionSystem = null, colliderRadius = 0.52,
+    dashSpeedMultiplier = 2.5, dashDuration = 0.18, dashCooldown = 0.65 } = {}) {
     this.group = new Group();
     this.group.name = 'hello-kitty';
     this.group.position.copy(position);
     this.group.rotation.y = rotation;
     this.elapsedTime = 0;
-    this.maxSpeed = 3.5;
+    this.maxSpeed = 4.2;
     this.acceleration = 12;
     this.deceleration = 16;
     this.turnSpeed = 12;
+    // Centro acompanha a raiz; o raio representa o corpo, sem cabeça ou laço.
+    this.collider = { position: this.group.position, radius: colliderRadius };
+    this.collisionSystem = collisionSystem;
+    this.ownsCollisionSystem = false;
+    // Compatibilidade com consumidores antigos: os limites eram do centro.
+    if (!collisionSystem && movementBounds) {
+      this.collisionSystem = new CollisionSystem({ bounds: {
+        minX: movementBounds.minX - colliderRadius, maxX: movementBounds.maxX + colliderRadius,
+        minZ: movementBounds.minZ - colliderRadius, maxZ: movementBounds.maxZ + colliderRadius,
+      } });
+      this.ownsCollisionSystem = true;
+    }
+    this.displacement = new Vector3();
+    this.dashSpeedMultiplier = dashSpeedMultiplier;
+    this.dashDuration = dashDuration;
+    this.dashCooldown = dashCooldown;
+    this.dashRemaining = 0;
+    this.cooldownRemaining = 0;
+    this.dashDirection = new Vector3();
+    this.state = 'idle';
+    this.walkPhase = 0;
+    this.walkWeight = 0;
+    this.actualSpeed = 0;
+    this.previousPosition = new Vector3();
+    this.footBounds = new Box3();
+    this.trails = [];
+    this.trailClock = 0;
     this.velocity = new Vector3();
     this.targetVelocity = new Vector3();
     this.velocityOffset = new Vector3();
@@ -44,9 +76,25 @@ export class Player {
     this.head.rotation.x = -0.08;
     this.leftArm = this.part('left-arm', this.body, [0.46, 0.6, 0]);
     this.rightArm = this.part('right-arm', this.body, [-0.46, 0.6, 0]);
+    this.carryAnchor = this.part('carry-anchor', this.body, [0, 0.5, 0.67]);
+    this.carryWeight = 0;
+    this.cutAction = null;
+    this.cutPose = null;
+    this.cutWeight = 0;
+    this.cutRecoverySpeed = 16;
     this.feet = this.part('feet', this.group);
+    this.leftLeg = this.part('left-hip', this.feet, [0.245, 0.62, 0]);
+    this.rightLeg = this.part('right-hip', this.feet, [-0.245, 0.62, 0]);
     this.createBody();
     this.createHead();
+    for (let i = 0; i < 8; i++) {
+      const material = new MeshBasicMaterial({ color: i % 2 ? '#cceafa' : '#f9cfe5', transparent: true, opacity: 0, depthWrite: false });
+      this.materials[`trail-${i}`] = material;
+      const mesh = this.mesh(`dash-trail-${i}`, this.group, this.sphere, material, [0, 0.25, 0], [0.09, 0.09, 0.09]);
+      mesh.castShadow = false;
+      mesh.visible = false;
+      this.trails.push({ mesh, age: 1, position: new Vector3() });
+    }
     this.update(0);
   }
 
@@ -86,9 +134,10 @@ export class Player {
   createBody() {
     const { white, yellow, blue } = this.materials;
     for (const side of [-1, 1]) {
-      this.oval(`foot-${side}`, this.feet, white, [side * 0.245, 0.18, 0.09], [0.245, 0.18, 0.32]);
-      this.oval(`leg-${side}`, this.group, white, [side * 0.245, 0.37, 0], [0.15, 0.23, 0.17]);
-      this.oval(`overall-leg-${side}`, this.group, blue, [side * 0.245, 0.55, 0], [0.235, 0.22, 0.285]);
+      const hip = side === 1 ? this.leftLeg : this.rightLeg;
+      this.oval(`foot-${side}`, hip, white, [0, -0.44, 0.09], [0.245, 0.18, 0.32]);
+      this.oval(`leg-${side}`, hip, white, [0, -0.25, 0], [0.15, 0.23, 0.17]);
+      this.oval(`overall-leg-${side}`, hip, blue, [0, -0.07, 0], [0.235, 0.22, 0.285]);
     }
     this.oval('overall-bottom', this.group, blue, [0, 0.68, 0], [0.475, 0.32, 0.35]);
     this.oval('yellow-shirt', this.body, yellow, [0, 0.39, 0], [0.48, 0.46, 0.335]);
@@ -165,14 +214,23 @@ export class Player {
     this.targetVelocity.set(0, 0, 0);
     if (direction) this.targetVelocity.copy(direction).setY(0).clampLength(0, 1);
     this.targetVelocity.multiplyScalar(this.maxSpeed);
+    if (this.dashRemaining > 0) {
+      this.targetVelocity.copy(this.dashDirection).multiplyScalar(this.maxSpeed * this.dashSpeedMultiplier);
+      this.velocity.copy(this.targetVelocity);
+    }
     const rate = this.targetVelocity.lengthSq() > 0 ? this.acceleration : this.deceleration;
     const decay = Math.exp(-rate * deltaTime);
     this.velocityOffset.copy(this.velocity).sub(this.targetVelocity);
 
     // Integral exata da aceleração exponencial, para percorrer a mesma distância em qualquer FPS.
-    this.group.position.addScaledVector(this.targetVelocity, deltaTime);
-    this.group.position.addScaledVector(this.velocityOffset, (1 - decay) / rate);
+    this.displacement.copy(this.targetVelocity).multiplyScalar(deltaTime);
+    this.displacement.addScaledVector(this.velocityOffset, (1 - decay) / rate);
     this.velocity.copy(this.targetVelocity).addScaledVector(this.velocityOffset, decay);
+    if (this.collisionSystem) {
+      const result = this.collisionSystem.move(this.group.position, this.displacement, this.collider.radius);
+      if (result.blockedX) this.velocity.x = 0;
+      if (result.blockedZ) this.velocity.z = 0;
+    } else this.group.position.add(this.displacement);
     if (this.targetVelocity.lengthSq() === 0 && this.velocity.lengthSq() < 1e-8) {
       this.velocity.set(0, 0, 0);
     }
@@ -187,29 +245,138 @@ export class Player {
   }
 
   stopMoving() {
+    this.dashRemaining = 0;
+    this.state = 'idle';
     this.velocity.set(0, 0, 0);
     this.targetVelocity.set(0, 0, 0);
     this.velocityOffset.set(0, 0, 0);
   }
 
-  update(deltaTime, direction = null) {
+  get movementLocked() { return this.cutAction !== null; }
+
+  beginCutting(target, { recoverySpeed = 16, aimFraction = 0.35 } = {}) {
+    if (this.disposed || this.movementLocked || this.dashRemaining > 0 || this.carryAnchor.children.length) return false;
+    this.stopMoving();
+    const angle = Math.atan2(target.x - this.group.position.x, target.z - this.group.position.z);
+    const difference = angle - this.group.rotation.y;
+    this.cutAction = { startAngle: this.group.rotation.y,
+      angleOffset: Math.atan2(Math.sin(difference), Math.cos(difference)), progress: 0, aimFraction };
+    this.cutPose = this.cutAction;
+    this.cutRecoverySpeed = recoverySpeed;
+    this.state = 'cutting';
+    return true;
+  }
+
+  setCuttingProgress(progress) {
+    if (!this.cutAction) return;
+    this.cutAction.progress = Math.max(0, Math.min(1, progress));
+    const aim = Math.min(this.cutAction.progress / this.cutAction.aimFraction, 1);
+    this.group.rotation.y = this.cutAction.startAngle + this.cutAction.angleOffset * aim * aim * (3 - 2 * aim);
+  }
+
+  endCutting() {
+    if (!this.cutAction) return;
+    this.cutAction = null;
+    this.stopMoving();
+  }
+
+  animateCutting(deltaTime) {
+    const pose = this.cutPose;
+    this.cutWeight += ((this.movementLocked ? 1 : 0) - this.cutWeight)
+      * (1 - Math.exp(-(this.movementLocked ? 24 : this.cutRecoverySpeed) * deltaTime));
+    if (!pose) return;
+    const smooth = (value) => value * value * (3 - 2 * value);
+    const q = Math.max(0, (pose.progress - pose.aimFraction) / (1 - pose.aimFraction));
+    const right = q < 0.35 ? -1.05 - 0.7 * smooth(q / 0.35)
+      : q < 0.6 ? -1.75 + 0.9 * smooth((q - 0.35) / 0.25)
+        : -0.85 - 0.2 * smooth((q - 0.6) / 0.4);
+    const w = this.cutWeight;
+    this.rightArm.rotation.x += (right - this.rightArm.rotation.x) * w;
+    this.leftArm.rotation.x += (-1.1 - this.leftArm.rotation.x) * w;
+    this.leftArm.rotation.z += (-0.5 - this.leftArm.rotation.z) * w;
+    this.rightArm.rotation.z += (0.5 - this.rightArm.rotation.z) * w;
+    this.body.rotation.x += (0.075 - this.body.rotation.x) * w;
+    if (!this.movementLocked && w < 1e-5) { this.cutWeight = 0; this.cutPose = null; }
+  }
+
+  update(deltaTime, direction = null, dashPressed = false) {
     if (this.disposed) return;
     deltaTime = Number.isFinite(deltaTime) ? Math.min(Math.max(deltaTime, 0), 0.05) : 0;
-    this.updateMovement(deltaTime, direction);
+    const locked = this.movementLocked;
+    if (!locked && dashPressed && this.cooldownRemaining <= 1e-8 && direction?.lengthSq() > 0) {
+      this.dashDirection.copy(direction).setY(0).normalize();
+      this.dashRemaining = this.dashDuration;
+      this.cooldownRemaining = this.dashCooldown;
+    }
+    this.previousPosition.copy(this.group.position);
+    const dashStep = Math.min(deltaTime, this.dashRemaining);
+    if (!locked && dashStep > 0) this.updateMovement(dashStep, this.dashDirection);
+    this.dashRemaining = Math.max(0, this.dashRemaining - dashStep);
+    if (!locked && deltaTime > dashStep) this.updateMovement(deltaTime - dashStep, direction);
+    this.cooldownRemaining = Math.max(0, this.cooldownRemaining - deltaTime);
+    this.actualSpeed = deltaTime > 0 ? this.group.position.distanceTo(this.previousPosition) / deltaTime : 0;
+    this.state = locked ? 'cutting' : this.dashRemaining > 0 ? 'dashing' : this.actualSpeed > 0.01 ? 'walking' : 'idle';
     this.elapsedTime = (this.elapsedTime + deltaTime) % (Math.PI * 2 / 1.8);
     const phase = this.elapsedTime * 1.8;
     // Movimento absoluto a partir do tempo: mesma pose para o mesmo tempo em qualquer FPS.
-    this.body.position.y = 0.66 + (1 - Math.cos(phase)) * 0.012;
-    this.body.rotation.z = 0;
-    this.leftArm.rotation.z = 0.08 + Math.sin(phase) * 0.055;
-    this.rightArm.rotation.z = -0.08 - Math.sin(phase + 0.25) * 0.055;
-    // Pés e pernas fora do grupo animado: nunca atravessam o piso.
+    const blend = 1 - Math.exp(-16 * deltaTime);
+    this.walkWeight += (Math.min(this.actualSpeed / this.maxSpeed, 1) - this.walkWeight) * blend;
+    this.walkPhase = (this.walkPhase + this.actualSpeed * deltaTime * 3.6) % (Math.PI * 2);
+    const swing = Math.sin(this.walkPhase) * this.walkWeight;
+    this.body.position.y = 0.66 + (1 - Math.cos(phase)) * 0.012 + Math.abs(swing) * 0.025;
+    const lean = this.state === 'dashing' ? 0.16 : 0;
+    const leanAngle = Math.atan2(this.dashDirection.x, this.dashDirection.z) - this.group.rotation.y;
+    this.body.rotation.x += (Math.cos(leanAngle) * lean - this.body.rotation.x) * blend;
+    this.body.rotation.z += (-Math.sin(leanAngle) * lean - this.body.rotation.z) * blend;
+    this.carryWeight += ((this.carryAnchor.children.length ? 1 : 0) - this.carryWeight) * blend;
+    const freeWeight = 1 - this.carryWeight;
+    this.leftArm.rotation.z = (-0.08 + Math.sin(phase) * 0.025) * freeWeight - 0.7 * this.carryWeight;
+    this.rightArm.rotation.z = (0.08 - Math.sin(phase) * 0.025) * freeWeight + 0.7 * this.carryWeight;
+    this.leftArm.rotation.x = swing * 0.55 * freeWeight - 1.12 * this.carryWeight;
+    this.rightArm.rotation.x = -swing * 0.55 * freeWeight - 1.12 * this.carryWeight;
+    this.leftLeg.rotation.x = -swing * 0.38;
+    this.rightLeg.rotation.x = swing * 0.38;
+    this.animateCutting(deltaTime);
+    // Levanta apenas o necessário para que a geometria rotacionada não atravesse o piso.
+    for (const hip of [this.leftLeg, this.rightLeg]) {
+      hip.position.y = 0.62;
+      this.group.updateMatrixWorld(true);
+      const bottom = this.footBounds.setFromObject(hip).min.y;
+      hip.position.y += Math.max(0, this.group.position.y - bottom);
+    }
+    this.updateTrails(deltaTime);
+    // Os pivôs preservam os offsets originais de pernas, pés e roupas.
+  }
+
+  updateTrails(deltaTime) {
+    this.trailClock += deltaTime;
+    if (this.state === 'dashing' && this.actualSpeed > 0.1 && this.trailClock >= 0.025) {
+      const trail = this.trails.find((entry) => entry.age >= 0.28);
+      if (trail) {
+        trail.age = 0;
+        trail.position.copy(this.group.position).addScaledVector(this.dashDirection, -0.35);
+        trail.position.y += 0.3;
+      }
+      this.trailClock = 0;
+    }
+    this.group.updateMatrixWorld(true);
+    for (const trail of this.trails) {
+      trail.age += deltaTime;
+      trail.mesh.visible = trail.age < 0.28;
+      if (!trail.mesh.visible) continue;
+      trail.mesh.position.copy(trail.position);
+      this.group.worldToLocal(trail.mesh.position);
+      trail.mesh.material.opacity = (1 - trail.age / 0.28) * 0.4;
+    }
   }
 
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
     this.stopMoving();
+    this.cutAction = null;
+    this.cutPose = null;
+    if (this.ownsCollisionSystem) this.collisionSystem.dispose();
     this.group.removeFromParent();
     this.geometries.forEach((geometry) => geometry.dispose());
     Object.values(this.materials).forEach((material) => material.dispose());
