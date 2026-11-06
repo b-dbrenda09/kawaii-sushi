@@ -13,18 +13,20 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { CollisionSystem } from './CollisionSystem.js';
+import { BALANCE } from './Balance.js';
 
 // Frente do modelo em +Z, pés em Y = 0. Não depende da orientação da câmera.
 export class Player {
   constructor({ position = new Vector3(0, 0, 1), rotation = Math.PI / 4,
     movementBounds = null, collisionSystem = null, colliderRadius = 0.52,
-    dashSpeedMultiplier = 2.5, dashDuration = 0.18, dashCooldown = 0.65 } = {}) {
+    dashSpeedMultiplier = BALANCE.player.dashSpeed / BALANCE.player.walkSpeed,
+    dashDuration = BALANCE.player.dashDuration, dashCooldown = BALANCE.player.dashCooldown } = {}) {
     this.group = new Group();
     this.group.name = 'hello-kitty';
     this.group.position.copy(position);
     this.group.rotation.y = rotation;
     this.elapsedTime = 0;
-    this.maxSpeed = 4.2;
+    this.maxSpeed = BALANCE.player.walkSpeed;
     this.acceleration = 12;
     this.deceleration = 16;
     this.turnSpeed = 12;

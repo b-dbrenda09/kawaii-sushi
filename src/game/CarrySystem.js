@@ -10,7 +10,7 @@ export class CarrySystem {
   }
 
   describe(station) {
-    if (station.behavior) return station.behavior.describe();
+    if (station.behavior) return station.behavior.describe(this);
     const carried = this.carriedIngredient;
     const source = station.ingredientSource;
     if (source) {
@@ -111,7 +111,7 @@ export class CarrySystem {
   interact(station) {
     if (this.disposed || this.stations.get(station.id) !== station || this.player.movementLocked || this.player.state === 'dashing'
       || this.player.dashRemaining > 0) return this.result(false, 'unavailable', 'Interação indisponível.');
-    if (station.behavior) return station.behavior.interact();
+    if (station.behavior) return station.behavior.interact(this);
     if (station.ingredientSource) return this.takeFromBox(station);
     if (station.id === 'trash') return this.discard();
     if (station.storage) return this.carriedIngredient ? this.place(station) : this.retrieve(station);

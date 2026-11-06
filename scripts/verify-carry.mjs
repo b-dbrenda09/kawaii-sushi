@@ -49,7 +49,7 @@ const contents = [...stations.values()].filter((station) => station.ingredientSo
   model: station.model.getObjectByName(`${station.ingredientSource.ingredient}-contents`),
   count: station.model.getObjectByName(`${station.ingredientSource.ingredient}-contents`).children.length,
 }));
-assert.deepEqual([...stations.values()].filter((station) => station.storage).map((station) => station.id).sort(), ['assembly', 'cutting']);
+assert.deepEqual([...stations.values()].filter((station) => station.storage).map((station) => station.id).sort(), ['assembly', 'assembly2', 'assembly3', 'cutting', 'cutting2', 'cutting3']);
 for (const definition of Object.values(INGREDIENT_TYPES)) {
   approach(definition.originBoxId);
   assert.equal(ui.action, `Pegar ${definition.label}`);
@@ -177,7 +177,7 @@ assert.equal(cutting.storedIngredient, null);
 cutting.storage = normalStorage;
 
 // Caminhada, giro, pernas e dash continuam no mesmo Player, sem física do objeto.
-player.group.position.copy(world.kitchen.spawnPosition);
+player.group.position.set(0, 0, 2.4);
 player.stopMoving();
 const movingItem = carry.carriedIngredient;
 const point = new Vector3();
@@ -205,7 +205,7 @@ for (let i = 0; i < 12; i++) {
   player.update(0.02, new Vector3(-1, 0, 0));
   assert.ok(movingItem.model.getWorldPosition(new Vector3()).distanceTo(player.carryAnchor.getWorldPosition(new Vector3())) < 1e-8);
 }
-assert.equal(player.maxSpeed, 4.2);
+assert.equal(player.maxSpeed, 5.04);
 assert.equal(player.dashDuration, 0.18);
 assert.equal(player.dashCooldown, 0.65);
 player.stopMoving();

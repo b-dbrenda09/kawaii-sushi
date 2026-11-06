@@ -17,17 +17,15 @@ function key(type, code, extra = {}) {
 }
 const directions = new Map();
 for (const [code, axis, sign] of [
-  ['KeyW', 'y', 1], ['ArrowUp', 'y', 1], ['KeyS', 'y', -1], ['ArrowDown', 'y', -1],
+  ['KeyW', 'z', -1], ['ArrowUp', 'z', -1], ['KeyS', 'z', 1], ['ArrowDown', 'z', 1],
   ['KeyA', 'x', -1], ['ArrowLeft', 'x', -1], ['KeyD', 'x', 1], ['ArrowRight', 'x', 1],
 ]) {
   input.reset();
   assert.ok(key('keydown', code).defaultPrevented);
   const direction = input.getDirection().clone();
   directions.set(code, direction);
-  const center = new Vector3().project(camera);
-  const projected = direction.clone().project(camera).sub(center);
-  assert.ok(projected[axis] * sign > 0, `${code} deve seguir a direção visual da tela.`);
-  assert.ok(Math.abs(projected[axis === 'x' ? 'y' : 'x']) < 1e-10);
+  assert.equal(direction[axis], sign, `${code} deve seguir o eixo fixo da cozinha.`);
+  assert.equal(Math.abs(direction[axis === 'x' ? 'z' : 'x']), 0);
   assert.ok(Math.abs(direction.length() - 1) < 1e-10);
   assert.equal(direction.y, 0);
   key('keyup', code);
@@ -42,6 +40,9 @@ assert.ok(input.getDirection().equals(diagonal), 'W+seta para cima não devem du
 key('keydown', 'KeyS'); key('keydown', 'ArrowDown'); key('keydown', 'KeyA');
 assert.equal(input.getDirection().length(), 0, 'Direções opostas se cancelam.');
 
+input.reset(); key('keydown', 'KeyW');
+input.onBlur({ target: new EventTarget() });
+assert.ok(input.getDirection().equals(directions.get('KeyW')), 'Foco de elementos informativos não deve limpar o teclado da janela.');
 for (const event of ['blur', 'visibilitychange']) {
   input.reset(); key('keydown', 'KeyW');
   (event === 'blur' ? target : documentTarget).dispatchEvent(new Event(event));
@@ -51,10 +52,14 @@ input.reset();
 assert.equal(key('keydown', 'KeyW', { ctrlKey: true }).defaultPrevented, false);
 assert.equal(input.getDirection().length(), 0);
 
-// Uma orientação diferente comprova que não há vetores isométricos fixos no controle.
-camera.position.set(-24, 24, 24); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(true);
-key('keydown', 'KeyW');
-assert.ok(input.getDirection().x > 0 && input.getDirection().z < 0);
+// A orientação da câmera não pode mudar nenhum dos oito controles.
+for (const position of [[-24, 24, 24], [24, 24, -24], [-24, 24, -24]]) {
+  camera.position.set(...position); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(true);
+  for (const [code, expected] of directions) {
+    input.reset(); key('keydown', code);
+    assert.ok(input.getDirection().equals(expected), `${code} deve independer da câmera.`);
+  }
+}
 input.dispose();
 input.dispose();
 key('keydown', 'KeyW');
@@ -116,4 +121,4 @@ assert.ok(stalled.group.position.equals(safePosition));
 stalled.stopMoving();
 assert.equal(stalled.velocity.length(), 0);
 players.forEach((player) => player.dispose());
-console.log('OK: WASD/setas relativos à câmera, diagonal, aceleração/frenagem, 30/144 FPS, rotação Y, foco e deltaTime.');
+console.log('OK: WASD/setas nos eixos fixos X/Z, independência da câmera, diagonal, aceleração/frenagem, 30/144 FPS, rotação Y, foco e deltaTime.');

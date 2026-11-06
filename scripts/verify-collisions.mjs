@@ -70,7 +70,7 @@ const kitchen = makeSystem({ bounds: world.collisionBounds });
 world.collisionObstacles.filter((obstacle) => !world.kitchen.stations.has(obstacle.id))
   .forEach((obstacle) => kitchen.registerObstacle(obstacle));
 assert.equal(world.dimensions.width, 18);
-assert.equal(world.dimensions.depth, 14);
+assert.equal(world.dimensions.depth, 18);
 for (const name of ['back-wall', 'left-wall', 'right-low-wall', 'front-boundary']) assert.ok(kitchen.obstacles.has(name));
 const directions = [
   new Vector3(1, 0, 0), new Vector3(-1, 0, 0), new Vector3(0, 0, 1), new Vector3(0, 0, -1),
@@ -92,7 +92,7 @@ for (const direction of directions) {
 for (const fps of [20, 30, 60, 144]) {
   for (const direction of directions) {
     const player = makePlayer({ collisionSystem: kitchen });
-    assert.equal(player.maxSpeed, 4.2);
+    assert.equal(player.maxSpeed, 5.04);
     assert.equal(player.dashDuration, 0.18);
     assert.equal(player.dashCooldown, 0.65);
     assert.equal(player.collider.position, player.group.position);

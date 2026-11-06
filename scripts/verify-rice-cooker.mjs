@@ -24,7 +24,8 @@ const sharedColor = world.kitchen.materials.dark.color.getHex();
 const factory = new IngredientFactory();
 const carry = new CarrySystem({ player, stations, factory });
 const effects = new RiceCookerEffects(station);
-const cooker = new RiceCookerSystem({ station, carrySystem: carry, factory, effects });
+// Também preserva configurações anteriores; os novos padrões são testados em verify-update.mjs.
+const cooker = new RiceCookerSystem({ station, carrySystem: carry, factory, effects, cookDuration: 8, burnDelay: 12 });
 const collision = new CollisionSystem({ bounds: world.collisionBounds });
 world.collisionObstacles.forEach((obstacle) => collision.registerObstacle(obstacle));
 player.collisionSystem = collision;
@@ -113,7 +114,7 @@ assert.equal(cooker.elapsed, 0);
 assert.equal(ui.action, 'Cozinhando...');
 assert.equal(cooker.start().success, false);
 assert.equal(cooker.retrieve().success, false);
-player.group.position.copy(world.kitchen.spawnPosition); player.stopMoving(); player.cooldownRemaining = 0;
+player.group.position.set(0, 0, 2.4); player.stopMoving(); player.cooldownRemaining = 0;
 const movementOrigin = player.group.position.clone();
 for (let i = 0; i < 60; i++) frame(1 / 60, new Vector3(1, 0, 0), i === 15);
 assert.ok(player.group.position.distanceTo(movementOrigin) > 4, 'É possível andar e usar dash durante o cozimento.');
@@ -171,7 +172,7 @@ cooker.update(100);
 assert.equal(stations.get('assembly').storedIngredient.state, 'rice_cooked');
 act('assembly', 'retrieve');
 assert.equal(carry.carriedIngredient.instanceId, originalId);
-player.group.position.copy(world.kitchen.spawnPosition); player.stopMoving(); player.cooldownRemaining = 0;
+player.group.position.set(0, 0, 2.4); player.stopMoving(); player.cooldownRemaining = 0;
 for (let i = 0; i < 30; i++) {
   frame(1 / 60, new Vector3(-1, 0, 0), i === 0);
   assert.equal(rice.model.parent, player.carryAnchor);
@@ -225,7 +226,7 @@ assert.ok(station.position.equals(originalPosition));
 assert.equal(JSON.stringify(station.collider), originalCollider);
 assert.equal(station.model.getObjectByName('rice-cooker-body'), originalBody);
 assert.equal(station.model.getObjectByName('rice-cooker-lid'), originalLid);
-assert.equal(player.maxSpeed, 4.2);
+assert.equal(player.maxSpeed, 5.04);
 assert.equal(player.dashDuration, 0.18);
 assert.equal(player.dashCooldown, 0.65);
 
@@ -236,7 +237,7 @@ function timerFixture() {
   const player = { carryAnchor: new Group(), state: 'idle', dashRemaining: 0 };
   const carry = new CarrySystem({ player, stations: new Map([['riceCooker', station]]), factory });
   carry.attach(factory.create('rice'));
-  const cooker = new RiceCookerSystem({ station, carrySystem: carry, factory });
+  const cooker = new RiceCookerSystem({ station, carrySystem: carry, factory, cookDuration: 8, burnDelay: 12 });
   cooker.load(); cooker.start();
   return { factory, carry, cooker, dispose() { cooker.dispose(); carry.dispose(); factory.dispose(); } };
 }
@@ -278,4 +279,4 @@ assert.equal(station.model.getObjectByName('rice-cooker-display').material, orig
 assert.ok(originalLid.position.distanceTo(lidPosition) < 1e-9);
 for (const resource of resources) assert.equal(disposed.get(resource), 1);
 input.dispose(); interaction.dispose(); carry.dispose(); factory.dispose(); collision.dispose(); world.dispose();
-console.log('OK: EMPTY/LOADED/COOKING/READY/BURNT, E separado, 8s + 12s, 1/5/15/30/60/144 FPS e variações, validação, mãos ocupadas, mesma instância cozida, vapor/fumaça/luz, descarte/reinício, movimento/dash e limpeza.');
+console.log('OK: panela parametrizada em 8s/12s para regressão, estados, E separado, FPS variados, identidade, efeitos, descarte, movimento/dash e limpeza. Padrão 6s/20s coberto em verify-update.');

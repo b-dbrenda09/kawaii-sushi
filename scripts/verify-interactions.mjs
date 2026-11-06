@@ -38,7 +38,7 @@ for (const extra of [{ ctrlKey: true }, { altKey: true }, { metaKey: true }, { i
 const typingTarget = { isContentEditable: true };
 input.onKeyDown({ code: 'KeyE', target: typingTarget });
 assert.equal(input.consumeInteraction(), false);
-input.reset(); key('keydown', 'KeyW'); key('keydown', 'ShiftLeft'); key('keydown');
+input.reset(); key('keydown', 'KeyW'); key('keydown', 'Space'); key('keydown');
 assert.equal(input.getDirection().length(), 1);
 assert.equal(input.consumeDash(), true);
 assert.equal(input.consumeInteraction(), true);
@@ -52,7 +52,7 @@ const calls = [];
 const ui = { activeId: null, message: '', render(entry, message) { this.activeId = entry?.station.id ?? null; this.message = message; } };
 const interaction = new InteractionSystem({ stations: world.kitchen.stations.values(), collisionSystem: collision,
   ui, onInteract: (event) => calls.push(event.stationId) });
-assert.equal(interaction.stations.size, 9);
+assert.equal(interaction.stations.size, 16);
 const visualCounts = [...world.kitchen.stations.values()].map((station) => station.model.children.length);
 const playerParts = player.group.children.length;
 for (const station of world.kitchen.stations.values()) {
@@ -60,13 +60,13 @@ for (const station of world.kitchen.stations.values()) {
   player.group.position.copy(station.getApproachPosition());
   interaction.update(1 / 60, player);
   assert.equal(interaction.activeStation.id, station.id);
-  assert.equal(interaction.active.action, STATION_INTERACTIONS[station.id].action);
+  assert.equal(interaction.active.action, STATION_INTERACTIONS[station.type].action);
   const before = calls.length;
   key('keydown');
   let event = interaction.update(1 / 60, player, { interactPressed: input.consumeInteraction() });
   assert.equal(event.stationId, station.id);
   assert.equal(calls.length, before + 1);
-  assert.equal(ui.message, STATION_INTERACTIONS[station.id].confirmation);
+  assert.equal(ui.message, STATION_INTERACTIONS[station.type].confirmation);
   for (let i = 0; i < 5; i++) {
     key('keydown', 'KeyE', { repeat: true });
     event = interaction.update(1 / 60, player, { interactPressed: input.consumeInteraction() });

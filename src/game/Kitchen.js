@@ -21,8 +21,16 @@ export class Kitchen {
 
     this.createIngredientBoxes();
     this.createCutting();
+    this.createCutting('cutting2', [7.25, 0]);
+    this.createCutting('cutting3', [7.25, 3.1]);
     this.createRiceCooker();
+    this.createRiceCooker('riceCooker2', [-3.15, 8.7], 'riceBench1');
+    this.createRiceCooker('riceCooker3', [3.15, 8.7], 'riceBench2');
+    this.createRiceCooker('riceCooker4', [5.65, 8.7], 'riceBench2');
     this.createAssembly();
+    this.createAssembly('assembly2', [-3, 4.5]);
+    this.createAssembly('assembly3', [3, 4.5]);
+    for (const x of [-4.4, 4.4]) this.box(this.group, 'rice-bench-continuous-trim', [5, 0.08, 0.08], [x, 1.03, 7.94], 'pink');
     this.createDelivery();
     this.createTrash();
     this.createDecorations();
@@ -176,8 +184,8 @@ export class Kitchen {
     }
   }
 
-  createCutting() {
-    const station = this.station({ id: 'cutting', position: [7.25, -3.1], width: 2.8, depth: 1.55, height: 1.12, rotation: -Math.PI / 2 });
+  createCutting(id = 'cutting', position = [7.25, -3.1]) {
+    const station = this.station({ id, type: 'cutting', position, width: 2.8, depth: 1.55, height: 1.12, rotation: -Math.PI / 2 });
     station.configureStorage({ position: [0.96, 1.12, 0.27], width: 0.86, depth: 0.65 });
     this.counter(station);
     const model = station.model;
@@ -191,8 +199,8 @@ export class Kitchen {
     for (let i = 0; i < 3; i++) this.box(model, `utensil-${i}`, [0.035, 0.43, 0.035], [0.9 + i * 0.065, 1.52, -0.35], 'wood');
   }
 
-  createRiceCooker() {
-    const station = this.station({ id: 'riceCooker', position: [7.25, 0.6], width: 2.5, depth: 1.55, height: 1.92, rotation: -Math.PI / 2 });
+  createRiceCooker(id = 'riceCooker', position = [-5.65, 8.7], benchId = 'riceBench1') {
+    const station = this.station({ id, type: 'riceCooker', benchId, position, width: 2.5, depth: 1.55, height: 1.92, rotation: Math.PI });
     // Altura do equipamento inclui a panela; a bancada continua na mesma altura das demais.
     const counterStation = { model: station.model, localDimensions: { width: 2.5, depth: 1.55, height: 1.12 } };
     this.counter(counterStation);
@@ -209,8 +217,8 @@ export class Kitchen {
     this.oval(model, 'rice-bowl-rice', [0.19, 0.06, 0.19], [0.86, 1.28, 0.2], 'rice');
   }
 
-  createAssembly() {
-    const station = this.station({ id: 'assembly', position: [0, 0], width: 3.8, depth: 2.4, height: 1.12 });
+  createAssembly(id = 'assembly', position = [0, 0]) {
+    const station = this.station({ id, type: 'assembly', position, width: 3.8, depth: 2.4, height: 1.12 });
     station.configureStorage({ position: [0, 1.12, 0.88], width: 0.9, depth: 0.6 });
     this.counter(station);
     const model = station.model;

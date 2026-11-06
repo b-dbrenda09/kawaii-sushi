@@ -95,6 +95,8 @@ try {
   }
   assert.ok(ready, 'Canvas não foi criado.');
   assert.ok(await evaluate('Boolean(globalThis.__kawaiiTestGame)'));
+  assert.equal(await evaluate('__kawaiiTestGame.session.mode'), 'MENU');
+  await evaluate('document.querySelector("[data-action=play]").click()');
   await delay(500);
   const state = await evaluate(`(() => {
     const g = __kawaiiTestGame;
@@ -102,25 +104,58 @@ try {
       speed: g.world.player.maxSpeed, duration: g.world.player.dashDuration, cooldown: g.world.player.dashCooldown,
       draws: g.renderer.info.render.calls, camera: g.camera.camera.position.toArray(), spawn: g.world.player.group.position.toArray() };
   })()`);
-  assert.equal(state.stations.length, 9);
+  assert.equal(state.stations.length, 16);
   for (const id of ['salmonBox', 'riceBox', 'cucumberBox', 'noriBox']) assert.ok(state.stations.includes(id));
   assert.ok(!state.stations.includes('fridge') && !state.stations.includes('pantry'));
   assert.equal(state.colliders, true);
-  assert.equal(state.speed, 4.2);
+  assert.equal(state.speed, 5.04);
   assert.equal(state.duration, 0.18);
   assert.equal(state.cooldown, 0.65);
   assert.ok(state.draws > 0);
   await mkdir('artifacts', { recursive: true });
+  await evaluate(`(() => {
+    const g=__kawaiiTestGame; let recipeIndex=0; g.orderSystem.random=()=> (recipeIndex++ % 3 + .1)/3;
+    g.customerSystem.update(40); g.orderUI.update(g.orderSystem,g.customerSystem.customers);
+    g.renderer.render(g.world.scene,g.camera.camera);
+  })()`);
+  assert.equal(await evaluate('__kawaiiTestGame.orderSystem.getActiveOrders().length'),2);
+  assert.equal(await evaluate('document.querySelectorAll(".order-bubble,.order-connector").length'),0);
+  assert.equal(await evaluate('document.querySelectorAll(".order-card:not(.is-leaving)").length'),2);
+  const hudPreview=await command('Page.captureScreenshot',{format:'png'});
+  await writeFile('artifacts/update-kitchen.png',Buffer.from(hudPreview.data,'base64'));
+  await evaluate('__kawaiiTestGame.customerSystem.maxCustomers=3; __kawaiiTestGame.customerSystem.update(40); __kawaiiTestGame.orderUI.update(__kawaiiTestGame.orderSystem,__kawaiiTestGame.customerSystem.customers)');
+  assert.equal(await evaluate('__kawaiiTestGame.orderUI.entries.size'),3);
+  await delay(250);
+  const cardInfo=await evaluate(`[...__kawaiiTestGame.orderUI.entries].map(([id,e])=> {
+    const o=__kawaiiTestGame.orderSystem.getOrder(id),c=__kawaiiTestGame.customerSystem.customers.get(o.customerId);
+    return {name:e.bubble.querySelector('.order-name').textContent,expected:o.recipeName,
+      animal:e.bubble.querySelector('.customer-portrait').dataset.animal,expectedAnimal:c.type,
+      model:e.bubble.querySelector('.order-sushi').dataset.model,recipe:o.recipeId,rect:e.bubble.getBoundingClientRect().toJSON()};
+  })`);
+  assert.ok(cardInfo.every(c=>c.name===c.expected && c.animal===c.expectedAnimal && c.model===({salmon_nigiri:'nigiri',salmon_maki:'maki',cucumber_uramaki:'uramaki'})[c.recipe]));
+  assert.ok(cardInfo.every(c=>c.rect.right<=1440 && c.rect.left>1100));
+  for (const [ratio,level] of [[.59,'concerned'],[.29,'impatient']]) {
+    await evaluate(`for(const o of __kawaiiTestGame.orderSystem.getActiveOrders()) o.remainingTime=o.maxPatience*${ratio}; __kawaiiTestGame.customerSystem.update(.01); __kawaiiTestGame.orderUI.update(__kawaiiTestGame.orderSystem,__kawaiiTestGame.customerSystem.customers)`);
+    assert.equal(await evaluate(`[...__kawaiiTestGame.orderUI.entries.values()].every(e=>e.bubble.dataset.level==='${level}')`),true);
+  }
+  await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});await delay(250);
+  assert.equal(await evaluate(`(()=>{const rs=[...document.querySelectorAll('.order-card')].map(e=>e.getBoundingClientRect());return rs.every((r,i)=>r.left>=0&&r.right<=390&&r.top>=0&&rs.every((o,j)=>i===j||r.bottom<=o.top||r.top>=o.bottom));})()`),true);
+  const mobile=await command('Page.captureScreenshot',{format:'png'});await writeFile('artifacts/update-orders-mobile.png',Buffer.from(mobile.data,'base64'));
+  await command('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});await delay(250);
+  await evaluate(`(()=>{const g=__kawaiiTestGame,o=g.orderSystem.getActiveOrders()[0];globalThis.__expiredId=o.id;o.remainingTime=.001;g.customerSystem.update(.05);g.orderUI.update(g.orderSystem,g.customerSystem.customers);})()`);
+  assert.equal(await evaluate('__kawaiiTestGame.orderUI.entries.has(__expiredId)'),false);
+  await waitFor('!document.querySelector(`[data-order-id="${__expiredId}"]`)', 'Notificação expirada não terminou a animação de saída.');
+  assert.equal(await evaluate('Boolean(document.querySelector(`[data-order-id="${__expiredId}"]`))'),false);
   const screenshot = await command('Page.captureScreenshot', { format: 'png' });
   await writeFile('artifacts/kitchen.png', Buffer.from(screenshot.data, 'base64'));
   await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyW', key: 'w', windowsVirtualKeyCode: 87 });
   await delay(120);
-  await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'ShiftLeft', key: 'Shift', windowsVirtualKeyCode: 16, modifiers: 8 });
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'Space', key: ' ', windowsVirtualKeyCode: 32 });
   await delay(80);
   assert.equal(await evaluate('__kawaiiTestGame.world.player.state'), 'dashing');
   await delay(400);
-  assert.equal(await evaluate('__kawaiiTestGame.world.player.dashRemaining'), 0, 'Segurar Shift não deve repetir dash.');
-  await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'ShiftLeft', key: 'Shift', windowsVirtualKeyCode: 16 });
+  assert.equal(await evaluate('__kawaiiTestGame.world.player.dashRemaining'), 0, 'Segurar Space não deve repetir dash.');
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'Space', key: ' ', windowsVirtualKeyCode: 32 });
   await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyW', key: 'w', windowsVirtualKeyCode: 87 });
   await delay(1000);
   assert.equal(await evaluate('__kawaiiTestGame.world.player.state'), 'idle');
@@ -184,7 +219,7 @@ try {
   await pressE('keyUp');
   // Dash + E não executa uma interação, nem durante a arrancada nem ao terminar.
   await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyW', key: 'w', windowsVirtualKeyCode: 87 });
-  await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'ShiftLeft', key: 'Shift', windowsVirtualKeyCode: 16, modifiers: 8 });
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'Space', key: ' ', windowsVirtualKeyCode: 32 });
   await pressE('keyDown');
   await waitFor('__kawaiiTestGame.world.player.state === "dashing" && document.querySelector(".interaction-hint").hidden', 'Indicador não foi ocultado durante o dash.');
   assert.equal(await evaluate('document.querySelector(".interaction-hint").hidden'), true);
@@ -194,7 +229,7 @@ try {
   await delay(60);
   assert.equal(await evaluate('__interactionEvents.length'), beforeIgnored);
   await pressE('keyUp');
-  await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'ShiftLeft', key: 'Shift', windowsVirtualKeyCode: 16 });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'Space', key: ' ', windowsVirtualKeyCode: 32 });
   await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyW', key: 'w', windowsVirtualKeyCode: 87 });
   await approach('assembly');
   await waitFor('__kawaiiTestGame.interactionSystem.activeStation?.id === "assembly"', 'Seleção não retornou depois do dash.');
@@ -204,9 +239,10 @@ try {
   await pressE('keyUp');
   await evaluate('window.dispatchEvent(new Event("blur"))');
   await delay(60);
-  assert.equal(await evaluate('document.querySelector(".interaction-hint").hidden'), true);
-  assert.equal(await evaluate('document.querySelector(".interaction-feedback").hidden'), true);
+  assert.equal(await evaluate('__kawaiiTestGame.session.mode'), 'PLAYING');
+  assert.equal(await evaluate('document.querySelector(".pause-overlay").hidden'), true);
   await evaluate('window.dispatchEvent(new Event("focus"))');
+  await evaluate('__kawaiiTestGame.session.play()');
   await waitFor('__kawaiiTestGame.interactionSystem.activeStation?.id === "assembly"', 'Seleção não voltou após recuperar o foco.');
   assert.equal(await evaluate('__kawaiiTestGame.interactionSystem.activeStation?.id'), 'assembly');
   assert.deepEqual(await evaluate('__kawaiiTestGame.camera.camera.position.toArray()'), state.camera);
@@ -281,7 +317,7 @@ try {
   await waitFor('__kawaiiTestGame.interactionSystem.activeStation?.id === "assembly"', 'Ilha não selecionada antes do dash carregado.');
   const beforeCarryDash = await evaluate('__carryEvents.length');
   await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyW', key: 'w', windowsVirtualKeyCode: 87 });
-  await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'ShiftLeft', key: 'Shift', windowsVirtualKeyCode: 16, modifiers: 8 });
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'Space', key: ' ', windowsVirtualKeyCode: 32 });
   await pressE('keyDown');
   await waitFor('__kawaiiTestGame.world.player.state === "dashing"', 'Dash carregado não iniciou.');
   assert.equal(await evaluate('__carryEvents.length'), beforeCarryDash);
@@ -295,7 +331,7 @@ try {
   })()`);
   assert.equal(attached, true, 'Ingrediente ficou para trás durante o dash.');
   await pressE('keyUp');
-  await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'ShiftLeft', key: 'Shift', windowsVirtualKeyCode: 16 });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'Space', key: ' ', windowsVirtualKeyCode: 32 });
   await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyW', key: 'w', windowsVirtualKeyCode: 87 });
   await carryAction('trash', 'discard');
   assert.equal(await evaluate('__kawaiiTestGame.ingredientFactory.instances.size'), 0);
@@ -323,7 +359,7 @@ try {
     assert.equal(await evaluate('__kawaiiTestGame.cuttingSystem.cuts'), 0);
     assert.equal(await evaluate('document.querySelector(".cutting-progress").getAttribute("aria-valuenow")'), '0');
     await captureCutting(`${type}-loaded`);
-    for (let hit = 1; hit <= 5; hit++) {
+    for (let hit = 1; hit <= 3; hit++) {
       if (type === 'salmon' && hit === 1) {
         // Pausa só o loop de teste no início do golpe, sem alterar a duração de produção.
         await evaluate(`(() => {
@@ -342,7 +378,7 @@ try {
           cancelAnimationFrame(g.frameId);
           g.cuttingSystem.update(g.cuttingSystem.strokeDuration * 0.5);
           for (let i = 0; i < 3; i++) g.world.player.update(0.05);
-          for (const code of ['KeyW', 'ShiftLeft', 'KeyE']) {
+          for (const code of ['KeyW', 'Space', 'KeyE']) {
             window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true }));
           }
           g.cuttingUI.update(g.cuttingSystem, g.camera.camera);
@@ -369,22 +405,22 @@ try {
         assert.equal(await evaluate('__carryEvents.length'), lockedEvents);
         await pressE('keyUp');
         await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyW', key: 'w', windowsVirtualKeyCode: 87 });
-        await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'ShiftLeft', key: 'Shift', windowsVirtualKeyCode: 16 });
+        await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'Space', key: ' ', windowsVirtualKeyCode: 32 });
       } else {
         await carryAction('cutting', 'cut-stroke');
         await waitFor('!__kawaiiTestGame.cuttingSystem.isCutting', 'Golpe ficou bloqueado.');
       }
       assert.equal(await evaluate('__kawaiiTestGame.cuttingSystem.cuts'), hit);
-      assert.equal(await evaluate('document.querySelector(".cutting-progress").getAttribute("aria-valuenow")'), String(hit * 20));
+      assert.equal(await evaluate('document.querySelector(".cutting-progress").getAttribute("aria-valuenow")'), String(Math.round(hit / 3 * 100)));
       assert.equal(await evaluate('__kawaiiTestGame.world.player.movementLocked'), false);
       assert.equal(await evaluate('__kawaiiTestGame.cuttingSystem.content.instanceId'), instance);
-      if (hit === 3) {
+      if (hit === 2) {
         const position = await evaluate('__kawaiiTestGame.cuttingSystem.content.model.getWorldPosition(__kawaiiTestGame.world.player.velocity.clone()).toArray()');
         await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyA', key: 'a', windowsVirtualKeyCode: 65 });
         await delay(650);
         await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyA', key: 'a', windowsVirtualKeyCode: 65 });
         await waitFor('__kawaiiTestGame.interactionSystem.activeStation?.id !== "cutting"', 'Não foi possível sair da bancada entre golpes.');
-        assert.equal(await evaluate('__kawaiiTestGame.cuttingSystem.cuts'), 3);
+        assert.equal(await evaluate('__kawaiiTestGame.cuttingSystem.cuts'), 2);
         assert.deepEqual(await evaluate('__kawaiiTestGame.cuttingSystem.content.model.getWorldPosition(__kawaiiTestGame.world.player.velocity.clone()).toArray()'), position);
       }
     }
@@ -414,7 +450,7 @@ try {
     assert.equal(await evaluate('__kawaiiTestGame.carrySystem.carriedIngredient.state'), prepared);
     await carryAction('trash', 'discard');
   }
-  assert.equal(await evaluate('__cutSounds.hits'), 10);
+  assert.equal(await evaluate('__cutSounds.hits'), 6);
   assert.equal(await evaluate('__cutSounds.completions'), 2);
   assert.equal(await evaluate('__kawaiiTestGame.sound.context?.state'), 'running');
   for (const [box, type] of [['riceBox', 'rice'], ['noriBox', 'nori']]) {
@@ -446,14 +482,14 @@ try {
   await captureCooker('cooking');
   const movingWhileCooking = await evaluate('__kawaiiTestGame.world.player.group.position.toArray()');
   await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyS', key: 's', windowsVirtualKeyCode: 83 });
-  await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'ShiftLeft', key: 'Shift', windowsVirtualKeyCode: 16, modifiers: 8 });
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', code: 'Space', key: ' ', windowsVirtualKeyCode: 32 });
   await waitFor('__kawaiiTestGame.world.player.state === "dashing"', 'Cozimento bloqueou o dash.');
   await waitFor('__kawaiiTestGame.world.player.dashRemaining === 0', 'Dash durante cozimento não terminou.');
-  await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'ShiftLeft', key: 'Shift', windowsVirtualKeyCode: 16 });
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'Space', key: ' ', windowsVirtualKeyCode: 32 });
   await command('Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyS', key: 's', windowsVirtualKeyCode: 83 });
   assert.notDeepEqual(await evaluate('__kawaiiTestGame.world.player.group.position.toArray()'), movingWhileCooking);
   await carryAction('salmonBox', 'pickup', 'salmon');
-  await waitFor('__kawaiiTestGame.riceCooker.state === "READY"', 'Arroz não ficou pronto após 8 segundos.', 10000);
+  await waitFor('__kawaiiTestGame.riceCooker.state === "READY"', 'Arroz não ficou pronto após 6 segundos.', 10000);
   await carryAction('riceCooker', 'unavailable', 'salmon');
   assert.equal(await evaluate('document.querySelector(".interaction-hint span").textContent'), 'Mãos ocupadas');
   assert.equal(await evaluate('document.querySelector(".rice-cooker-status").dataset.state'), 'READY');
@@ -485,7 +521,7 @@ try {
   await carryAction('riceCooker', 'load-rice');
   await carryAction('riceCooker', 'start-cooking');
   await waitFor('__kawaiiTestGame.riceCooker.state === "READY"', 'Segundo ciclo não concluiu o cozimento.', 10000);
-  await waitFor('__kawaiiTestGame.riceCooker.state === "BURNT"', 'Arroz não queimou após 12 segundos adicionais.', 14000);
+  await waitFor('__kawaiiTestGame.riceCooker.state === "BURNT"', 'Arroz não queimou após 20 segundos adicionais.', 22000);
   await approach('riceCooker');
   await waitFor('document.querySelector(".interaction-hint span").textContent === "Descartar arroz queimado"', 'Ação de descarte não atualizou.');
   assert.equal(await evaluate('__kawaiiTestGame.riceCooker.content.state'), 'rice_burnt');
@@ -546,10 +582,10 @@ try {
     await waitFor('__kawaiiTestGame.world.player.carryWeight > 0.98', 'Pose do prato não estabilizou.');
     await captureAssembly(`${recipe}-carried`, true);
     await command('Input.dispatchKeyEvent', { type:'keyDown', code:'KeyD', key:'d', windowsVirtualKeyCode:68 });
-    await command('Input.dispatchKeyEvent', { type:'keyDown', code:'ShiftRight', key:'Shift', windowsVirtualKeyCode:16 });
+    await command('Input.dispatchKeyEvent', { type:'keyDown', code:'Space', key:' ', windowsVirtualKeyCode:32 });
     await waitFor('__kawaiiTestGame.world.player.state === "dashing"', 'Prato impediu o dash.');
     await waitFor('__kawaiiTestGame.world.player.dashRemaining === 0', 'Dash do prato não terminou.');
-    await command('Input.dispatchKeyEvent', { type:'keyUp', code:'ShiftRight', key:'Shift', windowsVirtualKeyCode:16 });
+    await command('Input.dispatchKeyEvent', { type:'keyUp', code:'Space', key:' ', windowsVirtualKeyCode:32 });
     await command('Input.dispatchKeyEvent', { type:'keyUp', code:'KeyD', key:'d', windowsVirtualKeyCode:68 });
     assert.equal(await evaluate('__kawaiiTestGame.carrySystem.carriedIngredient.model.parent === __kawaiiTestGame.world.player.carryAnchor'), true);
     await carryAction('salmonBox', 'unavailable', 'sushi');
@@ -574,6 +610,56 @@ try {
   await carryAction('riceCooker', 'load-rice');
   assert.equal(await evaluate('__kawaiiTestGame.riceCooker.state'), 'LOADED');
   assert.equal(await evaluate('__kawaiiTestGame.riceCooker.elapsed'), 0);
+  await evaluate(`(() => {
+    const g=__kawaiiTestGame;
+    g.riceCooker.start();
+    for(const s of [...g.riceCookers.values()].slice(1)) {
+      g.carrySystem.attach(g.ingredientFactory.create('rice'));g.carrySystem.interact(s.station);g.carrySystem.interact(s.station);
+    }
+    g.carrySystem.attach(g.ingredientFactory.create('rice','rice_cooked'));
+    g.carrySystem.interact(g.assemblySystems.get('assembly2').station);
+    g.carrySystem.attach(g.ingredientFactory.create('cucumber'));
+    const cut=g.cuttingSystems.get('cutting2');g.carrySystem.interact(cut.station);g.carrySystem.interact(cut.station);
+    window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',bubbles:true,cancelable:true}));
+    globalThis.__pauseSnapshot=()=>JSON.stringify({
+      player:[g.world.player.group.position.toArray(),g.world.player.elapsedTime,g.world.player.dashRemaining,g.world.player.cutAction],
+      rice:[...g.riceCookers.values()].map(s=>[s.state,s.elapsed,s.effects.phase]),
+      cutting:[...g.cuttingSystems.values()].map(s=>[s.state,s.strokeElapsed,s.cuts]),
+      assembly:[...g.assemblySystems.values()].map(s=>[s.sequence,s.cancelElapsed,s.completionRemaining]),
+      customers:[...g.customerSystem.customers.values()].map(c=>[c.state,c.elapsed,c.model.position.toArray()]),
+      clock:g.customerSystem.clock,orders:g.orderSystem.getActiveOrders(),events:__carryEvents.length });
+  })()`);
+  assert.equal(await evaluate('__kawaiiTestGame.session.mode'),'PAUSED');
+  const frozen=await evaluate('__pauseSnapshot()');
+  await command('Input.dispatchKeyEvent',{type:'keyDown',code:'Escape',key:'Escape',windowsVirtualKeyCode:27,autoRepeat:true});
+  await command('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
+  await pressE('keyDown');await delay(300);
+  assert.equal(await evaluate('__pauseSnapshot()'),frozen,'Pausa deve congelar preparo, animações, clientes e pedidos.');
+  const pauseShot=await command('Page.captureScreenshot',{format:'png'});await writeFile('artifacts/update-paused.png',Buffer.from(pauseShot.data,'base64'));
+  await evaluate('document.querySelector("[data-action=controls]").click()');
+  assert.equal(await evaluate('__kawaiiTestGame.session.mode'),'CONTROLS');
+  assert.equal(await evaluate('document.querySelector(".pause-panel").textContent.includes("Space: correr/dash.")'),true);
+  const controlsShot=await command('Page.captureScreenshot',{format:'png'});await writeFile('artifacts/update-controls.png',Buffer.from(controlsShot.data,'base64'));
+  await command('Input.dispatchKeyEvent',{type:'keyUp',code:'Escape',key:'Escape',windowsVirtualKeyCode:27});
+  await command('Input.dispatchKeyEvent',{type:'keyDown',code:'Escape',key:'Escape',windowsVirtualKeyCode:27});
+  assert.equal(await evaluate('__kawaiiTestGame.session.mode'),'PAUSED');
+  assert.equal(await evaluate('__pauseSnapshot()'),frozen);
+  await evaluate('document.querySelector("[data-action=resume]").click()');
+  await pressE('keyUp');
+  await command('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyW',key:'w',windowsVirtualKeyCode:87,autoRepeat:true});
+  await delay(350);
+  assert.equal(await evaluate('__kawaiiTestGame.input.getDirection().length()'),0,'W segurado antes de retomar não fica preso.');
+  await command('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
+  assert.equal(await evaluate('__kawaiiTestGame.cuttingSystems.get("cutting2").cuts'),1,'Retoma o mesmo golpe sem reiniciar.');
+  assert.ok(await evaluate('__kawaiiTestGame.riceCooker.elapsed < 1.5'),'Sem salto no relógio ao retomar.');
+  assert.equal(await evaluate(`(() => {const g=__kawaiiTestGame;g.world.player.stopMoving();g.world.player.cooldownRemaining=0;
+    g.world.player.group.position.set(0,0,2.4);g.input.reset();
+    for(const code of ['KeyD','Space'])window.dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true,cancelable:true}));
+    g.updateSimulation(.01);g.session.pause();return g.world.player.dashRemaining>0;})()`),true);
+  const dashFrozen=await evaluate('__pauseSnapshot()');await delay(250);assert.equal(await evaluate('__pauseSnapshot()'),dashFrozen);
+  await evaluate('__kawaiiTestGame.session.play()');
+  await waitFor('__kawaiiTestGame.world.player.dashRemaining===0','Dash não terminou depois de retomar a pausa.');
+  assert.equal(await evaluate('__kawaiiTestGame.world.player.dashRemaining'),0);
   const cleaned = await evaluate(`(() => {
     const g = __kawaiiTestGame; g.dispose();
     return g.ingredientFactory.instances.size === 0 && g.riceCooker.content === null && g.sushiFactory.instances.size === 0
@@ -585,9 +671,24 @@ try {
   await command('Page.navigate', { url: `${url}/?debugCollisions=1` });
   await delay(1500);
   assert.deepEqual(errors, [], `Erros ao ativar depuração: ${JSON.stringify(errors)}`);
+  await evaluate('document.querySelector("[data-action=controls]").click()');
+  await evaluate('__kawaiiTestGame.session.escape()');assert.equal(await evaluate('__kawaiiTestGame.session.mode'),'MENU');
+  await evaluate('document.querySelector("[data-action=play]").click(); __kawaiiTestGame.session.pause(); document.querySelector("[data-action=main-menu]").click()');
+  assert.equal(await evaluate('__kawaiiTestGame.session.mode'),'CONFIRM');
+  await evaluate('document.querySelector("[data-action=cancel]").click()');assert.equal(await evaluate('__kawaiiTestGame.session.mode'),'PAUSED');
+  await evaluate(`(() => {
+    const bind=Function.prototype.bind;
+    Function.prototype.bind=function(target,...args){const result=Reflect.apply(bind,this,[target,...args]);
+      if(this.name==='tick'&&target?.constructor?.name==='Game'){globalThis.__kawaiiTestGame=target;Function.prototype.bind=bind;}return result;};
+    document.querySelector('[data-action=main-menu]').click();document.querySelector('[data-action=confirm]').click();
+  })()`);
+  assert.equal(await evaluate('__kawaiiTestGame.session.mode'),'MENU');
+  assert.equal(await evaluate('__kawaiiTestGame.customerSystem.clock'),0);
+  assert.equal(await evaluate('document.querySelectorAll("canvas").length'),1);
+  const menuShot=await command('Page.captureScreenshot',{format:'png'});await writeFile('artifacts/update-menu.png',Buffer.from(menuShot.data,'base64'));
   await evaluate('__kawaiiTestGame.dispose()');
   assert.equal(await evaluate('document.querySelector(".interaction-ui")'), null);
-  console.log('OK: Chrome headless, três sushis, prefixos ambíguos, rejeição sem consumo, montagem progressiva, R, pratos com transporte/dash/apoio, corte, arroz 8s/12s e nenhum erro no console. Previews: artifacts/assembly-*.png');
+  console.log('OK: Chrome headless, três sushis, prefixos ambíguos, rejeição sem consumo, montagem progressiva, R, pratos com transporte/dash/apoio, corte, arroz 6s/20s e nenhum erro no console. Previews: artifacts/assembly-*.png');
   await send('Browser.close');
 } finally {
   socket?.close();

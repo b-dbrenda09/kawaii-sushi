@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "test": "node scripts/verify-scene.mjs && node scripts/verify-player.mjs && node scripts/verify-movement.mjs && node scripts/verify-dash.mjs && node scripts/verify-collisions.mjs && node scripts/verify-kitchen.mjs && node scripts/verify-interactions.mjs && node scripts/verify-carry.mjs && node scripts/verify-rice-cooker.mjs && node scripts/verify-cutting.mjs && node scripts/verify-assembly.mjs",
+    "test": "node scripts/verify-scene.mjs && node scripts/verify-player.mjs && node scripts/verify-movement.mjs && node scripts/verify-dash.mjs && node scripts/verify-collisions.mjs && node scripts/verify-kitchen.mjs && node scripts/verify-interactions.mjs && node scripts/verify-carry.mjs && node scripts/verify-rice-cooker.mjs && node scripts/verify-cutting.mjs && node scripts/verify-assembly.mjs && node scripts/verify-customers.mjs && node scripts/verify-orders.mjs && node scripts/verify-update.mjs && node scripts/verify-game-loop.mjs",
+    "test:customers": "node scripts/verify-customers.mjs && node scripts/verify-orders.mjs && node scripts/verify-update.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

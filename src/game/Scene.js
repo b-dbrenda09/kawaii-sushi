@@ -17,7 +17,9 @@ export class Scene {
     this.scene = new ThreeScene();
     this.scene.background = new Color('#fce8ef');
     // Coordenadas jogáveis: x de -9 a 9, z de -7 a 7; piso em y = 0.
-    this.dimensions = Object.freeze({ width: 18, depth: 14, wallHeight: 3.6 });
+    this.dimensions = Object.freeze({ width: 18, depth: 18, wallHeight: 3.6 });
+    this.frontZ = 11;
+    this.backZ = -7;
     this.architecture = new Group();
     this.architecture.name = 'kitchen-architecture';
     this.scene.add(this.architecture);
@@ -36,7 +38,7 @@ export class Scene {
     this.createWalls();
     this.collisionBounds = Object.freeze({
       minX: -this.dimensions.width / 2, maxX: this.dimensions.width / 2,
-      minZ: -this.dimensions.depth / 2, maxZ: this.dimensions.depth / 2,
+      minZ: this.backZ, maxZ: this.frontZ,
     });
     // Volumes sólidos na altura do corpo. Travessas e painéis elevados são decorativos.
     this.collisionObstacles = [];
@@ -49,7 +51,7 @@ export class Scene {
       } });
     }
     // Limite lógico da frente aberta, sem adicionar parede visível.
-    this.collisionObstacles.push({ id: 'front-boundary', position: { x: 0, z: this.dimensions.depth / 2 + 0.1 },
+    this.collisionObstacles.push({ id: 'front-boundary', position: { x: 0, z: this.frontZ + 0.1 },
       width: this.dimensions.width + 0.4, depth: 0.2 });
     this.kitchen = new Kitchen();
     this.scene.add(this.kitchen.group);
@@ -74,7 +76,7 @@ export class Scene {
 
   createFloor() {
     const { width, depth } = this.dimensions;
-    this.box('floor-foundation', [width + 0.5, 0.36, depth + 0.5], [0, -0.25, 0], this.materials.foundation);
+    this.box('floor-foundation', [width + 0.5, 0.36, depth + 0.5], [0, -0.25, 2], this.materials.foundation);
     // Juntas de 0,018 unidade e emendas alternadas, sem texturas externas.
     for (let row = 0; row < depth; row++) {
       let start = -width / 2;
@@ -82,34 +84,34 @@ export class Scene {
       while (start < width / 2) {
         const length = Math.min(index === 0 && row % 2 ? 1.5 : 3, width / 2 - start);
         this.box(`floor-plank-${row}-${index}`, [length - 0.018, 0.08, 0.982],
-          [start + length / 2, -0.04, -depth / 2 + row + 0.5],
+          [start + length / 2, -0.04, this.backZ + row + 0.5],
           this.materials.planks[(row * 3 + index) % this.materials.planks.length], false);
         start += length;
         index++;
       }
     }
-    this.box('front-floor-edge', [18.5, 0.13, 0.12], [0, -0.03, 7.15], this.materials.trim, false);
+    this.box('front-floor-edge', [18.5, 0.13, 0.12], [0, -0.03, this.frontZ + 0.15], this.materials.trim, false);
   }
 
   createWalls() {
     const { plaster, wood, trim, paper, sage } = this.materials;
     const height = this.dimensions.wallHeight;
     this.box('back-wall', [18.4, height, 0.22], [0, height / 2, -7.11], plaster);
-    this.box('left-wall', [0.22, height, 14.2], [-9.11, height / 2, 0], plaster);
+    this.box('left-wall', [0.22, height, 18.2], [-9.11, height / 2, 2], plaster);
     // Parede próxima rebaixada para manter os corredores visíveis.
-    this.box('right-low-wall', [0.22, 0.65, 14.2], [9.11, 0.325, 0], plaster);
+    this.box('right-low-wall', [0.22, 0.65, 18.2], [9.11, 0.325, 2], plaster);
 
     this.box('back-skirting', [18.4, 0.24, 0.12], [0, 0.12, -6.94], wood);
-    this.box('left-skirting', [0.12, 0.24, 14], [-8.94, 0.12, 0], wood);
-    this.box('right-skirting', [0.12, 0.18, 14], [8.94, 0.09, 0], wood);
+    this.box('left-skirting', [0.12, 0.24, 18], [-8.94, 0.12, 2], wood);
+    this.box('right-skirting', [0.12, 0.18, 18], [8.94, 0.09, 2], wood);
     this.box('back-beam', [18.6, 0.22, 0.36], [0, height, -7.1], wood);
-    this.box('left-beam', [0.36, 0.22, 14.3], [-9.1, height, 0], wood);
-    this.box('right-wall-cap', [0.34, 0.1, 14.3], [9.11, 0.68, 0], trim);
+    this.box('left-beam', [0.36, 0.22, 18.3], [-9.1, height, 2], wood);
+    this.box('right-wall-cap', [0.34, 0.1, 18.3], [9.11, 0.68, 2], trim);
 
     for (const x of [-9, -4.5, 0, 4.5, 9]) {
       this.box(`back-post-${x}`, [0.18, height, 0.28], [x, height / 2, -7], wood);
     }
-    for (const z of [-2.4, 2.3, 7]) {
+    for (const z of [-2.4, 2.3, 7, 11]) {
       this.box(`left-post-${z}`, [0.28, height, 0.18], [-9, height / 2, z], wood);
     }
 

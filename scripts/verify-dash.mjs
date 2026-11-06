@@ -11,11 +11,12 @@ function key(type, code, repeat = false) {
   Object.assign(event, { code, repeat });
   target.dispatchEvent(event);
 }
-key('keydown', 'ShiftLeft');
+key('keydown', 'Space');
 assert.equal(input.consumeDash(), false);
-key('keyup', 'ShiftLeft');
+key('keyup', 'Space');
 key('keydown', 'KeyW');
-for (const shift of ['ShiftLeft', 'ShiftRight']) {
+for (const code of ['ShiftLeft', 'ShiftRight']) { key('keydown', code); assert.equal(input.consumeDash(), false); key('keyup', code); }
+for (const shift of ['Space']) {
   key('keydown', shift);
   assert.equal(input.consumeDash(), true);
   assert.equal(input.consumeDash(), false);
@@ -36,7 +37,7 @@ p.update(0.01, null, true);
 assert.equal(p.dashRemaining, 0);
 p.update(0.01, forward, true);
 assert.equal(p.state, 'dashing');
-assert.equal(p.velocity.length(), p.maxSpeed * 2.5);
+assert.equal(p.velocity.length(), p.maxSpeed * p.dashSpeedMultiplier);
 const lockedX = p.group.position.x;
 p.update(0.05, new Vector3(1, 0, 0));
 assert.equal(p.group.position.x, lockedX);
@@ -91,4 +92,4 @@ assert.ok(p.trails.every(({ mesh }) => !mesh.visible));
 p.stopMoving();
 assert.equal(p.dashRemaining, 0);
 players.forEach((v) => v.dispose());
-console.log('OK: Shift, repetição, foco, duração, cooldown, direção fixa, diagonal, limites, pivôs, chão, idle e rastros.');
+console.log('OK: Space, Shift desativado, repetição, foco, duração, cooldown, direção fixa, diagonal, limites, pivôs, chão, idle e rastros.');

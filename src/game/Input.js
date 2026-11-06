@@ -4,11 +4,10 @@ const MOVEMENT_KEYS = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD',
   'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight',
 ]);
-const DASH_KEYS = new Set(['ShiftLeft', 'ShiftRight']);
+const DASH_KEYS = new Set(['Space']);
 
 export class Input {
-  constructor(camera, { target = window, documentTarget = document } = {}) {
-    this.camera = camera;
+  constructor(_camera, { target = window, documentTarget = document } = {}) {
     this.target = target;
     this.documentTarget = documentTarget;
     this.keys = new Set();
@@ -18,9 +17,6 @@ export class Input {
     this.interactionPressed = false;
     this.enabled = false;
     this.disposed = false;
-    this.forward = new Vector3();
-    this.right = new Vector3();
-    this.up = new Vector3(0, 1, 0);
     this.direction = new Vector3();
 
     this.onKeyDown = (event) => {
@@ -33,6 +29,8 @@ export class Input {
         this.suppressedKeys.add(event.code);
         return;
       }
+      // Após pausar, uma tecla ainda segurada precisa ser solta antes de voltar a agir.
+      if (event.repeat && !this.keys.has(event.code)) return;
       if (DASH_KEYS.has(event.code) && !event.repeat && !this.keys.has(event.code)) {
         this.dashPressed = this.getDirection().lengthSq() > 0;
       }
@@ -44,7 +42,10 @@ export class Input {
       this.keys.delete(event.code);
       this.suppressedKeys.delete(event.code);
     };
-    this.onBlur = () => this.reset();
+    this.onBlur = event => {
+      // Só uma perda real de foco da janela limpa teclas; eventos de elementos da UI não o fazem.
+      if (event.target === this.target) this.reset();
+    };
     this.onVisibility = () => this.reset();
     target.addEventListener('keydown', this.onKeyDown);
     target.addEventListener('keyup', this.onKeyUp);
@@ -66,11 +67,8 @@ export class Input {
     const vertical = Number(this.keys.has('KeyW') || this.keys.has('ArrowUp'))
       - Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
 
-    this.camera.getWorldDirection(this.forward);
-    this.forward.y = 0;
-    this.forward.normalize();
-    this.right.crossVectors(this.forward, this.up).normalize();
-    this.direction.addScaledVector(this.forward, vertical).addScaledVector(this.right, horizontal);
+    // Eixos fixos da cozinha: fundo -Z, frente +Z, esquerda -X, direita +X.
+    this.direction.set(horizontal, 0, -vertical);
     // W+D tem o mesmo módulo que W: nenhuma vantagem de velocidade na diagonal.
     return this.direction.normalize();
   }

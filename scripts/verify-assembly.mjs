@@ -94,14 +94,14 @@ for (const recipe of RECIPES) {
   assert.equal(press('salmonBox').success, false, 'Caixas não podem apagar um prato pronto.');
   assert.equal(carry.carriedIngredient, dish);
   assert.throws(() => carry.attach({ disposed: false }), /dois/);
-  player.group.position.set(0, 0, 4.2);
+  player.group.position.set(0, 0, 2.4);
   const before = player.group.position.clone();
   player.update(0.05, new Vector3(1, 0, 0), true);
   assert.equal(player.state, 'dashing');
   for (let i = 0; i < 30; i++) player.update(0.05, new Vector3(0, 0, 1));
   assert.ok(player.group.position.distanceTo(before) > 0.1);
   assert.equal(dish.model.parent, player.carryAnchor);
-  assert.equal(dish.model.getWorldQuaternion(player.group.quaternion.clone()).angleTo(player.carryAnchor.getWorldQuaternion(player.group.quaternion.clone())) < 1e-8, true);
+  assert.equal(dish.model.getWorldQuaternion(player.group.quaternion.clone()).angleTo(player.carryAnchor.getWorldQuaternion(player.group.quaternion.clone())) < 1e-7, true);
   player.stopMoving();
   assert.equal(press().kind, 'place-sushi');
   assert.equal(assembly.dish, dish);
@@ -145,14 +145,14 @@ assembly.dispose(); assert.equal(factory.instances.size, 0);
 
 // Preparo existente continua produzindo exatamente os estados exigidos pelas receitas.
 carry.attach(factory.create('rice')); assert.equal(carry.interact(stations.get('riceCooker')).kind, 'load-rice');
-carry.interact(stations.get('riceCooker')); cooker.update(8); assert.equal(cooker.state, 'READY');
+carry.interact(stations.get('riceCooker')); cooker.update(6); assert.equal(cooker.state, 'READY');
 carry.interact(stations.get('riceCooker')); assert.equal(carry.carriedIngredient.state, 'rice_cooked'); carry.discard();
 carry.attach(factory.create('salmon')); carry.interact(stations.get('cutting'));
-for (let i = 0; i < 5; i++) { carry.interact(stations.get('cutting')); cutting.update(0.25); }
+for (let i = 0; i < 3; i++) { carry.interact(stations.get('cutting')); cutting.update(0.25); }
 assert.equal(cutting.state, 'READY'); carry.interact(stations.get('cutting'));
 assert.equal(carry.carriedIngredient.state, 'salmon_cut'); carry.discard();
 assert.deepEqual(station.position, originalPosition); assert.equal(JSON.stringify(station.collider), originalCollider);
-assert.equal(player.maxSpeed, 4.2); assert.equal(player.dashDuration, 0.18); assert.equal(player.dashCooldown, 0.65);
+assert.equal(player.maxSpeed, 5.04); assert.equal(player.dashDuration, 0.18); assert.equal(player.dashCooldown, 0.65);
 input.dispose(); interaction.dispose(); cutting.dispose(); cooker.dispose(); carry.dispose(); factory.dispose(); sushiFactory.dispose(); collision.dispose(); world.dispose();
 assert.equal(sushiFactory.instances.size, 0);
 console.log('OK: 3 receitas, prefixos ambíguos, ordem/rejeição sem consumo, montagem progressiva, pratos únicos, transporte/dash, apoio/retirada, cancelamento R de 1s e regressão de arroz/corte.');

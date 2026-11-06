@@ -2,8 +2,11 @@ import { Group, Vector3 } from 'three';
 
 // Metadados, modelo e armazenamento temporário de uma estação.
 export class Station {
-  constructor({ id, position, width, depth, height, rotation = 0 }) {
+  constructor({ id, type = id, position, width, depth, height, rotation = 0, benchId = null }) {
     this.id = id;
+    this.type = type;
+    this.benchId = benchId;
+    this.interactingPlayer = null;
     this.model = new Group();
     this.model.name = `station-${id}`;
     this.model.userData.stationId = id;
@@ -42,4 +45,6 @@ export class Station {
   getApproachPosition(radius = 0.52, clearance = 0.2) {
     return this.position.clone().addScaledVector(this.front, this.localDimensions.depth / 2 + radius + clearance);
   }
+
+  get state() { return this.behavior?.state ?? (this.storedIngredient ? 'OCCUPIED' : 'EMPTY'); }
 }

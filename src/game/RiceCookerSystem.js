@@ -1,12 +1,13 @@
 import { Group } from 'three';
 
 export const RICE_COOKER_STATES = Object.freeze({ EMPTY: 'EMPTY', LOADED: 'LOADED', COOKING: 'COOKING', READY: 'READY', BURNT: 'BURNT' });
+import { BALANCE } from './Balance.js';
 const TRANSITIONS = Object.freeze({ EMPTY: ['LOADED'], LOADED: ['COOKING'], COOKING: ['READY'], READY: ['EMPTY', 'BURNT'], BURNT: ['EMPTY'] });
 const EPSILON = 1e-9;
 
 export class RiceCookerSystem {
-  constructor({ station, carrySystem, factory, effects = null, cookDuration = 8, burnDelay = 12 }) {
-    if (station?.id !== 'riceCooker' || station.behavior) throw new Error('A estação riceCooker existente é necessária.');
+  constructor({ station, carrySystem, factory, effects = null, cookDuration = BALANCE.rice.cookDuration, burnDelay = BALANCE.rice.burnDelay }) {
+    if (station?.type !== 'riceCooker' || station.behavior) throw new Error('Uma estação de panela livre é necessária.');
     if (![cookDuration, burnDelay].every((value) => Number.isFinite(value) && value > 0)) throw new Error('Tempos da panela devem ser positivos.');
     this.station = station;
     this.carrySystem = carrySystem;
@@ -43,8 +44,8 @@ export class RiceCookerSystem {
 
   result(success, kind, message) { return { success, kind, message }; }
 
-  describe() {
-    const carried = this.carrySystem.carriedIngredient;
+  describe(carrySystem = this.carrySystem) {
+    const carried = carrySystem.carriedIngredient;
     switch (this.state) {
       case 'EMPTY': {
         const accepts = carried?.type === 'rice' && carried.state === 'rice_raw';
@@ -94,7 +95,8 @@ export class RiceCookerSystem {
     return this.result(true, 'discard-burnt-rice', 'Arroz queimado descartado. A panela está vazia.');
   }
 
-  interact() {
+  interact(carrySystem = this.carrySystem) {
+    this.carrySystem = carrySystem;
     if (this.disposed) return this.result(false, 'unavailable', 'Panela indisponível.');
     // Uma única ramificação por pressionamento: colocar nunca inicia o preparo.
     switch (this.state) {

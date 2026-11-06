@@ -1,11 +1,12 @@
 import { Group } from 'three';
 import { RecipeSystem } from './RecipeSystem.js';
+import { BALANCE } from './Balance.js';
 
 export const ASSEMBLY_STATES = Object.freeze({ EMPTY: 'EMPTY', ASSEMBLING: 'ASSEMBLING', READY: 'READY' });
 
 export class AssemblySystem {
-  constructor({ station, carrySystem, factory, recipes = new RecipeSystem(), cancelDuration = 1 }) {
-    if (station.id !== 'assembly' || station.behavior || !station.storage) throw new Error('Ilha de montagem inválida.');
+  constructor({ station, carrySystem, factory, recipes = new RecipeSystem(), cancelDuration = BALANCE.assembly.cancelDuration }) {
+    if (station.type !== 'assembly' || station.behavior || !station.storage) throw new Error('Ilha de montagem inválida.');
     if (!Number.isFinite(cancelDuration) || cancelDuration <= 0) throw new Error('Duração de cancelamento inválida.');
     this.station = station;
     this.carrySystem = carrySystem;
@@ -44,8 +45,8 @@ export class AssemblySystem {
     return Boolean(item && !item.disposed && item.kind !== 'sushi' && this.analysis.next.includes(item.state));
   }
 
-  describe() {
-    const item = this.carrySystem.carriedIngredient;
+  describe(carrySystem = this.carrySystem) {
+    const item = carrySystem.carriedIngredient;
     if (this.state === 'READY') return { action: item ? 'Mãos ocupadas' : 'Pegar sushi', available: !item };
     if (this.state === 'EMPTY' && item?.kind === 'sushi') return { action: 'Colocar sushi', available: true };
     if (item && !this.validNext(item)) return { action: 'Ingrediente incorreto', available: false };
@@ -55,7 +56,9 @@ export class AssemblySystem {
 
   result(success, kind, message) { return { success, kind, message }; }
 
-  interact() {
+  interact(carrySystem = this.carrySystem) {
+    if (this.station.interactingPlayer && this.station.interactingPlayer !== carrySystem.player) return this.result(false, 'unavailable', 'Bancada em uso.');
+    this.carrySystem = carrySystem;
     if (this.disposed) return this.result(false, 'unavailable', 'Montagem indisponível.');
     const carried = this.carrySystem.carriedIngredient;
     if (this.state === 'READY') {
@@ -99,7 +102,7 @@ export class AssemblySystem {
     return this.result(true, 'add-ingredient', 'Ingrediente adicionado à montagem.');
   }
 
-  resetCancellation() { this.cancelElapsed = 0; this.cancelEligible = false; }
+  resetCancellation() { this.cancelElapsed = 0; this.cancelEligible = false; this.station.interactingPlayer = null; }
 
   update(deltaTime, { selected = false, cancelHeld = false, disabled = false } = {}) {
     if (this.disposed) return;
@@ -114,7 +117,7 @@ export class AssemblySystem {
       && this.carrySystem.player.state !== 'dashing' && !(this.carrySystem.player.dashRemaining > 0);
     if (!eligible) { this.resetCancellation(); return; }
     // Não atribui ao R o tempo anterior à sua ativação/entrada no alcance.
-    if (!this.cancelEligible) { this.cancelEligible = true; return; }
+    if (!this.cancelEligible) { this.cancelEligible = true; this.station.interactingPlayer = this.carrySystem.player; return; }
     this.cancelElapsed = Math.min(this.cancelDuration, this.cancelElapsed + dt);
     if (this.cancelElapsed + 1e-9 < this.cancelDuration) return;
     for (const ingredient of this.ingredients) ingredient.dispose();

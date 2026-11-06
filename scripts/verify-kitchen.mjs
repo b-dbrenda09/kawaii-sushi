@@ -11,17 +11,18 @@ world.collisionObstacles.forEach((obstacle) => system.registerObstacle(obstacle)
 player.collisionSystem = system;
 const stations = [...kitchen.stations.values()];
 const ingredientIds = ['salmonBox', 'riceBox', 'cucumberBox', 'noriBox'];
-const ids = [...ingredientIds, 'cutting', 'riceCooker', 'assembly', 'delivery', 'trash'];
+const ids = [...ingredientIds, 'cutting', 'cutting2', 'cutting3', 'riceCooker', 'riceCooker2', 'riceCooker3', 'riceCooker4', 'assembly', 'assembly2', 'assembly3', 'delivery', 'trash'];
 assert.deepEqual([...kitchen.stations.keys()].sort(), ids.sort());
-assert.equal(kitchen.colliders.length, 9);
-assert.equal(player.maxSpeed, 4.2);
+assert.equal(kitchen.colliders.length, 16);
+assert.equal(player.maxSpeed, 5.04);
 assert.equal(player.dashDuration, 0.18);
 assert.equal(player.dashCooldown, 0.65);
-assert.equal(player.dashSpeedMultiplier, 2.5);
+assert.equal(player.dashSpeedMultiplier, 11.55 / 5.04);
 assert.ok(player.group.position.equals(kitchen.spawnPosition));
 assert.ok(player.group.position.z > 3);
 for (const id of ingredientIds) assert.ok(kitchen.stations.get(id).position.x < -6);
-for (const id of ['cutting', 'riceCooker']) assert.ok(kitchen.stations.get(id).position.x > 6);
+for (const id of ['cutting', 'cutting2', 'cutting3']) assert.ok(kitchen.stations.get(id).position.x > 6);
+for (const station of stations.filter(s => s.type === 'riceCooker')) assert.ok(station.position.z > 8);
 assert.ok(kitchen.stations.get('delivery').position.z < -4);
 assert.ok(kitchen.clientArea.position.z < kitchen.stations.get('delivery').collider.bounds.minZ);
 

@@ -36,7 +36,7 @@ export class InteractionSystem {
   }
 
   registerStation(station, options = {}) {
-    const defaults = STATION_INTERACTIONS[station.id];
+    const defaults = STATION_INTERACTIONS[station.type];
     if (!station.collider?.bounds || (!defaults && !options.action)) throw new Error(`Estação interativa inválida: ${station.id}`);
     const entry = { station, ...defaults, ...options };
     this.stations.set(station.id, entry);

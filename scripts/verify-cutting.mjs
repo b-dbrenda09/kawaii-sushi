@@ -30,7 +30,8 @@ world.collisionObstacles.forEach((obstacle) => collision.registerObstacle(obstac
 player.collisionSystem = collision;
 const effects = new CuttingEffects(station);
 const sounds = { hits: 0, completions: 0, playChop() { this.hits++; }, playComplete() { this.completions++; } };
-const cutting = new CuttingSystem({ station, player, carrySystem: carry, factory, effects, sound: sounds });
+// Mantém a cobertura de parametrização; o padrão atual de três golpes é testado em verify-update.mjs.
+const cutting = new CuttingSystem({ station, player, carrySystem: carry, factory, effects, sound: sounds, requiredCuts: 5 });
 const cooker = new RiceCookerSystem({ station: stations.get('riceCooker'), carrySystem: carry, factory });
 const events = [];
 const ui = { action: '', message: '', render(active, message) { this.action = active?.action; this.message = message; } };
@@ -125,7 +126,7 @@ for (const [box, type, raw, prepared] of [
     const eventCount = events.length;
     assert.equal(cutting.strike().success, false);
     // Nem teclas novas nem comandos diretos do movimento podem escapar do bloqueio.
-    key('keydown', 'KeyW'); key('keydown', 'ShiftLeft');
+    key('keydown', 'KeyW'); key('keydown', 'Space');
     key('keydown'); frame(0.01, new Vector3(1, 0, 0), true); key('keyup');
     assert.equal(input.consumeDash(), false);
     assert.equal(input.getDirection().length(), 0);
@@ -154,11 +155,11 @@ for (const [box, type, raw, prepared] of [
     assert.equal(ingredient.disposed, false);
     assert.equal(factory.instances.size, 1);
     // Teclas mantidas ou repetidas durante o bloqueio não começam movimento/dash depois.
-    key('keydown', 'KeyW', true); key('keydown', 'ShiftLeft', true);
+    key('keydown', 'KeyW', true); key('keydown', 'Space', true);
     frame(0.02);
     assert.ok(player.group.position.distanceTo(origin) < 1e-9);
     assert.equal(player.dashRemaining, 0);
-    key('keyup', 'KeyW'); key('keyup', 'ShiftLeft');
+    key('keyup', 'KeyW'); key('keyup', 'Space');
     if (count < 5) assert.equal(ingredient.state, raw);
     if (count === 3) {
       const position = ingredient.model.getWorldPosition(new Vector3());
@@ -255,7 +256,7 @@ assert.equal(carry.carriedIngredient.state, 'rice_cooked'); act('trash', 'discar
 assert.ok(station.position.equals(originalPosition));
 assert.equal(JSON.stringify(station.collider), originalCollider);
 assert.equal(board.geometry, boardGeometry); assert.ok(board.position.equals(boardPosition));
-assert.equal(player.maxSpeed, 4.2); assert.equal(player.dashDuration, 0.18); assert.equal(player.dashCooldown, 0.65);
+assert.equal(player.maxSpeed, 5.04); assert.equal(player.dashDuration, 0.18); assert.equal(player.dashCooldown, 0.65);
 
 // Parâmetros ajustáveis e encerramento durante um golpe sem deixar controles presos.
 cutting.requiredCuts = 3; cutting.strokeDuration = 0.4; cutting.recoverySpeed = 10;

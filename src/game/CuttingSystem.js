@@ -1,13 +1,14 @@
 import { Group, Vector3 } from 'three';
 
 export const CUTTING_STATES = Object.freeze({ EMPTY: 'EMPTY', LOADED: 'LOADED', CUTTING: 'CUTTING', READY: 'READY' });
+import { BALANCE } from './Balance.js';
 const TRANSITIONS = { EMPTY: ['LOADED'], LOADED: ['CUTTING'], CUTTING: ['LOADED', 'READY'], READY: ['EMPTY'] };
 const PREPARED = { salmon_raw: 'salmon_cut', cucumber_whole: 'cucumber_cut' };
 
 export class CuttingSystem {
   constructor({ station, player, carrySystem, factory, effects = null, sound = null,
-    requiredCuts = 5, strokeDuration = 0.25, recoverySpeed = 16 }) {
-    if (station?.id !== 'cutting' || station.behavior || station.storedIngredient) throw new Error('A bancada cutting existente e vazia é necessária.');
+    requiredCuts = BALANCE.cutting.requiredCuts, strokeDuration = BALANCE.cutting.strokeDuration, recoverySpeed = 16 }) {
+    if (station?.type !== 'cutting' || station.behavior || station.storedIngredient) throw new Error('Uma bancada de corte livre é necessária.');
     if (!Number.isInteger(requiredCuts) || requiredCuts < 1 || ![strokeDuration, recoverySpeed].every((value) => Number.isFinite(value) && value > 0)) {
       throw new Error('Configuração de corte inválida.');
     }
@@ -68,8 +69,8 @@ export class CuttingSystem {
 
   result(success, kind, message) { return { success, kind, message }; }
 
-  describe() {
-    const held = this.carrySystem.carriedIngredient;
+  describe(carrySystem = this.carrySystem) {
+    const held = carrySystem.carriedIngredient;
     if (this.state === 'EMPTY') {
       const valid = this.accepts(held);
       return { action: valid ? 'Colocar ingrediente' : held ? 'Ingrediente não pode ser cortado' : 'Bancada vazia', available: Boolean(valid), showKey: Boolean(valid) };
@@ -102,6 +103,7 @@ export class CuttingSystem {
     this.strokeElapsed = 0;
     this.impacted = false;
     this.transition('CUTTING');
+    this.station.interactingPlayer = this.player;
     this.effects?.update(0, this);
     return this.result(true, 'cut-stroke', 'Golpe de corte iniciado.');
   }
@@ -119,7 +121,10 @@ export class CuttingSystem {
     return this.result(true, 'take-cut-ingredient', `Carregando: ${ingredient.name}.`);
   }
 
-  interact() {
+  interact(carrySystem = this.carrySystem) {
+    if (this.station.interactingPlayer && this.station.interactingPlayer !== carrySystem.player) return this.result(false, 'unavailable', 'Bancada em uso.');
+    this.carrySystem = carrySystem;
+    this.player = carrySystem.player;
     if (this.disposed) return this.result(false, 'unavailable', 'Bancada indisponível.');
     switch (this.state) {
       case 'EMPTY': return this.load();
@@ -149,6 +154,7 @@ export class CuttingSystem {
           this.sound?.playComplete();
         } else this.transition('LOADED');
         this.player.endCutting();
+        this.station.interactingPlayer = null;
         this.strokeElapsed = 0;
       }
     }
@@ -158,6 +164,7 @@ export class CuttingSystem {
   cancelStroke() {
     if (!this.isCutting) return;
     this.player.endCutting();
+    this.station.interactingPlayer = null;
     this.strokeElapsed = 0;
     this.transition('LOADED');
     this.effects?.update(0, this);
