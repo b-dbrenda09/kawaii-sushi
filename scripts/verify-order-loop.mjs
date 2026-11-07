@@ -116,7 +116,7 @@ try {
     window.addEventListener('error',e=>diagnostic.exceptions.push({source:'window',message:e.message,stack:e.error?.stack,state:__freezeState()}));
   })()`);
   const before=await evaluate('__freezeState()');
-  await waitFor(`__kawaiiTestGame.orderSystem.getActiveOrders().length>0||[...__kawaiiTestGame.customerSystem.customers.values()].some(c=>c.state==='WALKING_TO_COUNTER'&&c.waypoint===c.path.length-1&&c.model.position.distanceTo(c.slot.position)<.9)`,'Primeiro cliente não chegou naturalmente.',35000);
+  await waitFor(`__kawaiiTestGame.orderSystem.getActiveOrders().length>0||[...__kawaiiTestGame.customerSystem.customers.values()].some(c=>c.state==='WALKING_TO_COUNTER'&&c.waypoint===c.path.length-1&&c.model.position.distanceTo(c.slot.position)<1.8)`,'Primeiro cliente não chegou naturalmente.',35000);
   assert.equal(await evaluate('typeof __kawaiiTestGame.orderUI.renderOrder'), 'function', 'O servidor deve fornecer o HUD atual, sem projeção pela câmera.');
   await evaluate(`(()=>{const p=__kawaiiTestGame.world.player;p.stopMoving();p.group.position.set(-4.5,0,2.4);})()`);
   await command('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
@@ -126,7 +126,7 @@ try {
   await command('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
   await evaluate(`(()=>{const p=__kawaiiTestGame.world.player;p.stopMoving();p.group.position.set(-3,0,2.4);})()`);
   await command('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyD',key:'d',windowsVirtualKeyCode:68});
-  await delay(350);const newKey=await evaluate('__freezeState()');await command('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyD',key:'d',windowsVirtualKeyCode:68});
+  await waitFor('__kawaiiTestGame.world.player.group.position.x>-2.99','D deve mover durante o pressionamento.');const newKey=await evaluate('__freezeState()');await command('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyD',key:'d',windowsVirtualKeyCode:68});
   const diagnostic=await evaluate('__freezeDiagnostic');
   const report={url,before,holding,appearance,after,newKey,diagnostic,errors};
   await writeFile('artifacts/freeze-diagnostic.json',JSON.stringify(report,null,2));

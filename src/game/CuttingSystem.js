@@ -39,7 +39,7 @@ export class CuttingSystem {
     station.model.updateWorldMatrix(true, true);
     this.originalInteractionArea = station.interactionArea;
     station.interactionArea = Object.freeze({
-      position: station.model.localToWorld(new Vector3(board.position.x, 0, station.localDimensions.depth / 2 + 0.72)), radius: 0.75,
+      position: station.model.localToWorld(new Vector3(board.position.x, 0, station.localDimensions.depth / 2 + 0.72)), radius: BALANCE.interaction.cuttingAreaRadius,
     });
     station.behavior = this;
     this.effects?.update(0, this);

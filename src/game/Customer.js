@@ -34,6 +34,7 @@ export class Customer {
   }
 
   update(dt, canMove = true) {
+    this.happyRemaining = Math.max(0, (this.happyRemaining ?? 0) - dt);
     this.elapsed += dt;
     let walking = false;
     if (this.moving && canMove) {
@@ -78,7 +79,17 @@ export class Customer {
     });
     this.rig.mouth.scale.y = concern ? 0.024 : 0.013;
     this.rig.mouth.position.y = concern ? -0.145 : -0.135;
-    if (concern) {
+    if (this.serviceResult === 'COMPLETED') {
+      this.animation = walking ? 'WALK' : 'HAPPY';
+      this.rig.brows.forEach(brow => { brow.visible = false; });
+      this.rig.mouth.scale.y = 0.025;
+      eyes.forEach(eye => { eye.scale.y = 0.018; });
+      if (this.happyRemaining > 0) {
+        body.position.y = Math.abs(Math.sin(this.elapsed * 10)) * 0.09;
+        arms.forEach(arm => { arm.rotation.x = -1.8; });
+      }
+    }
+    if (concern && this.serviceResult !== 'COMPLETED') {
       head.rotation.z += Math.sin(this.elapsed * (impatient ? 4 : 2.2)) * (impatient ? 0.05 : 0.025);
       arms[0].rotation.x += Math.sin(this.elapsed * 3) * 0.13;
       legs[1].rotation.x = Math.max(0, Math.sin(this.elapsed * (impatient ? 8 : 4))) * (impatient ? 0.2 : 0.09);

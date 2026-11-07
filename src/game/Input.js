@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import { MOVEMENT_MODES } from './ControlSettings.js';
 
 const MOVEMENT_KEYS = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD',
@@ -7,7 +8,9 @@ const MOVEMENT_KEYS = new Set([
 const DASH_KEYS = new Set(['Space']);
 
 export class Input {
-  constructor(_camera, { target = window, documentTarget = document } = {}) {
+  constructor(camera, { target = window, documentTarget = document, settings = null, player = null } = {}) {
+    this.camera = camera; this.settings = settings; this.player = player;
+    this.forward = new Vector3(); this.right = new Vector3();
     this.target = target;
     this.documentTarget = documentTarget;
     this.keys = new Set();
@@ -20,7 +23,7 @@ export class Input {
     this.direction = new Vector3();
 
     this.onKeyDown = (event) => {
-      if (!this.enabled || !(MOVEMENT_KEYS.has(event.code) || DASH_KEYS.has(event.code) || event.code === 'KeyE' || event.code === 'KeyR')) return;
+      if (!this.enabled || !(MOVEMENT_KEYS.has(event.code) || DASH_KEYS.has(event.code) || ['KeyE', 'KeyR', 'KeyQ', 'KeyF'].includes(event.code))) return;
       if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       if (event.target?.isContentEditable || event.target?.closest?.('input, textarea, select')) return;
       // As setas não devem rolar a página enquanto controlam o jogo.
@@ -68,9 +71,25 @@ export class Input {
       - Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
 
     // Eixos fixos da cozinha: fundo -Z, frente +Z, esquerda -X, direita +X.
-    this.direction.set(horizontal, 0, -vertical);
+    const mode = this.settings?.movementMode ?? MOVEMENT_MODES.MAP;
+    if (mode === MOVEMENT_MODES.CAMERA && this.camera) {
+      this.camera.getWorldDirection(this.forward); this.forward.y = 0;
+      if (this.forward.lengthSq() < 1e-8) this.forward.set(0, 0, -1);
+      this.forward.normalize(); this.right.set(-this.forward.z, 0, this.forward.x);
+      this.direction.copy(this.forward).multiplyScalar(vertical).addScaledVector(this.right, horizontal);
+    } else if (mode === MOVEMENT_MODES.CHARACTER && this.player) {
+      const angle = this.player.group.rotation.y;
+      this.forward.set(Math.sin(angle), 0, Math.cos(angle));
+      this.right.set(-Math.cos(angle), 0, Math.sin(angle));
+      this.direction.copy(this.forward).multiplyScalar(vertical).addScaledVector(this.right, horizontal);
+    } else this.direction.set(horizontal, 0, -vertical);
     // W+D tem o mesmo módulo que W: nenhuma vantagem de velocidade na diagonal.
     return this.direction.normalize();
+  }
+
+  getTurn() {
+    if (!this.enabled || this.actionsBlocked || this.settings?.movementMode !== MOVEMENT_MODES.CHARACTER) return 0;
+    return Number(this.keys.has('KeyQ')) - Number(this.keys.has('KeyF'));
   }
 
   reset() {

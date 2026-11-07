@@ -16,7 +16,7 @@ const recipes = new RecipeSystem();
 assert.equal(RECIPES.length, 3);
 assert.equal(recipes.analyze(['rice_cooked']).possible.length, 2);
 assert.equal(recipes.analyze(['rice_cooked']).complete, null);
-assert.deepEqual(recipes.analyze(['rice_cooked']).next, ['salmon_cut', 'nori_sheet']);
+assert.deepEqual(recipes.analyze(['rice_cooked']).next, ['salmon_cut', 'nori_sheet', 'cucumber_cut']);
 assert.equal(recipes.analyze(['rice_cooked', 'nori_sheet']).possible[0].id, 'cucumber_uramaki');
 assert.equal(recipes.analyze(['salmon_raw']).possible.length, 0);
 const extensible = new RecipeSystem([...RECIPES, { id: 'future', sequence: ['rice_cooked', 'salmon_cut', 'nori_sheet'] }]);

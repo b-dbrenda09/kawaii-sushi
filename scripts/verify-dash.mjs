@@ -57,7 +57,7 @@ diagonal.update(0.05, new Vector3(1, 0, 1), true);
 assert.ok(Math.abs(straight.group.position.distanceTo(origins[0]) - diagonal.group.position.distanceTo(origins[1])) < 1e-10);
 const bounded = create({ position: new Vector3(0.99, 0, 0), movementBounds: { minX: -1, maxX: 1, minZ: -1, maxZ: 1 } });
 bounded.update(10, new Vector3(1, 0, 1), true);
-assert.equal(bounded.group.position.x, 1);
+assert.ok(Math.abs(bounded.group.position.x - 1) < 1e-8, 'Contato respeita a pequena margem de separação.');
 assert.ok(bounded.group.position.z > 0 && bounded.group.position.z <= 1);
 assert.equal(bounded.velocity.x, 0);
 const distances = [];

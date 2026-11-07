@@ -14,6 +14,11 @@ import { OrderUI } from './OrderUI.js';
 import { PreparationSystem } from './PreparationSystem.js';
 import { SessionState } from './SessionState.js';
 import { PauseUI } from './PauseUI.js';
+import { DeliverySystem } from './DeliverySystem.js';
+import { ScoreSystem } from './ScoreSystem.js';
+import { ScoreUI } from './ScoreUI.js';
+import { RecipeBookUI } from './RecipeBookUI.js';
+import { ControlSettings } from './ControlSettings.js';
 
 export class Game {
   constructor(container, { onMainMenu = () => window.location.reload() } = {}) {
@@ -36,13 +41,21 @@ export class Game {
       this.orderSystem = this.customerSystem.orderSystem;
       this.orderUI = new OrderUI(container);
       this.camera = new Camera(container.clientWidth, container.clientHeight, this.world.bounds);
-      this.input = new Input(this.camera.camera);
+      let storage = null; try { storage = window.localStorage; } catch { /* Preferência em memória. */ }
+      this.controlSettings = new ControlSettings({ storage });
+      this.input = new Input(this.camera.camera, { settings: this.controlSettings, player: this.world.player });
       this.interactionUI = new InteractionUI(container);
       this.ingredientFactory = new IngredientFactory(); this.sushiFactory = new SushiFactory();
       this.carrySystem = new CarrySystem({ player: this.world.player, stations: this.world.kitchen.stations, factory: this.ingredientFactory });
       this.sound = new SoundSystem();
       this.preparation = new PreparationSystem({ stations: this.world.kitchen.stations, carrySystem: this.carrySystem,
         factory: this.ingredientFactory, sushiFactory: this.sushiFactory, sound: this.sound, container });
+      this.scoreUI = new ScoreUI(container);
+      this.scoreSystem = new ScoreSystem(event => this.scoreUI.render(event));
+      this.orderSystem.onExpired = () => this.scoreSystem.expire();
+      this.deliverySystem = new DeliverySystem({ station: this.world.kitchen.stations.get('delivery'),
+        carrySystem: this.carrySystem, customerSystem: this.customerSystem, scoreSystem: this.scoreSystem,
+        sound: this.sound, isPaused: () => !this.session || this.session.paused || document.hidden || this.disposed });
       this.riceCookers = this.preparation.riceCookers;
       this.cuttingSystems = this.preparation.cuttingSystems;
       this.assemblySystems = this.preparation.assemblySystems;
@@ -67,7 +80,8 @@ export class Game {
         this.pauseUI?.render();
         this.container.dataset.paused = String(this.session.paused);
       });
-      this.pauseUI = new PauseUI(container, this.session, onMainMenu);
+      this.pauseUI = new PauseUI(container, this.session, onMainMenu, this.controlSettings);
+      this.recipeBookUI = new RecipeBookUI(container, this.session);
       this.container.dataset.paused = 'true';
       this.resize = this.resize.bind(this); this.tick = this.tick.bind(this);
       this.handleVisibility = () => {
@@ -97,8 +111,13 @@ export class Game {
     this.input.setActionsBlocked(wasCutting);
     const wasDashing = this.world.player.dashRemaining > 0;
     const interactPressed = this.input.consumeInteraction();
+    const player = this.world.player;
+    player.autoFaceMovement = this.controlSettings?.movementMode !== 'character';
+    if (!wasCutting && !wasDashing) player.group.rotation.y += (this.input.getTurn?.() ?? 0) * 2.8 * deltaTime;
     const direction = this.input.getDirection(); const dashPressed = this.input.consumeDash();
     this.preparation.updatePreparation(elapsed);
+    this.deliverySystem?.update(elapsed);
+    this.scoreUI?.update(elapsed);
     this.customerSystem.update(elapsed);
     this.world.update(deltaTime, wasCutting ? null : direction, wasCutting ? false : dashPressed);
     this.interactionSystem.update(deltaTime, this.world.player, { interactPressed: !wasCutting && interactPressed, disabled: wasDashing });
@@ -149,7 +168,8 @@ export class Game {
     if (this.disposed) return;
     this.stop(); this.disposed = true;
     window.removeEventListener('resize', this.resize); document.removeEventListener('visibilitychange', this.handleVisibility);
-    this.pauseUI?.dispose(); this.input?.dispose(); this.interactionSystem?.dispose(); this.interactionUI?.dispose();
+    this.recipeBookUI?.dispose(); this.pauseUI?.dispose(); this.input?.dispose(); this.interactionSystem?.dispose(); this.interactionUI?.dispose();
+    this.deliverySystem?.dispose(); this.scoreUI?.dispose();
     this.preparation?.dispose(); this.sound?.dispose(); this.carrySystem?.dispose(); this.sushiFactory?.dispose(); this.ingredientFactory?.dispose();
     this.customerSystem?.dispose(); this.orderUI?.dispose(); this.collisionSystem?.dispose(); this.world?.dispose();
     this.renderer.dispose(); this.renderer.domElement.remove(); delete this.container.dataset.paused;

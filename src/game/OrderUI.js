@@ -1,5 +1,6 @@
 ﻿import { RECIPES } from './RecipeSystem.js';
 import { ORDER_STATES, patienceLevel } from './OrderSystem.js';
+import { recipeIngredients, createRecipeIllustration } from './RecipePresentation.js';
 
 const ANIMAL_NAMES = { rabbit: 'Coelhinho', bear: 'Ursinho', panda: 'Panda' };
 
@@ -26,18 +27,15 @@ export class OrderUI {
     portrait.setAttribute('role', 'img'); portrait.setAttribute('aria-label', ANIMAL_NAMES[customer.type]);
     for (const part of ['ear left', 'ear right', 'face', 'eye left', 'eye right', 'nose']) portrait.appendChild(element('span', part));
     const animal = element('div', 'order-animal'); animal.textContent = ANIMAL_NAMES[customer.type];
-    const icon = element('div', 'order-sushi');
-    icon.dataset.model = RECIPES.find(recipe => recipe.id === order.recipeId).model;
-    icon.setAttribute('role', 'img'); icon.setAttribute('aria-label', order.recipeName);
-    for (let i = 0; i < (icon.dataset.model === 'nigiri' ? 2 : 3); i++) {
-      const piece = element('span', 'sushi-piece'); piece.appendChild(element('span', 'sushi-filling')); icon.appendChild(piece);
-    }
+    const recipe = RECIPES.find(recipe => recipe.id === order.recipeId);
+    const icon = createRecipeIllustration(document, recipe);
     const name = element('div', 'order-name'); name.textContent = order.recipeName;
+    const tutorial = element('div', 'order-ingredients'); tutorial.textContent = recipeIngredients(recipe);
     const track = element('div', 'order-patience'); track.setAttribute('role', 'progressbar');
     track.setAttribute('aria-label', `Paciência: ${order.recipeName}`); track.setAttribute('aria-valuemin', '0'); track.setAttribute('aria-valuemax', '100');
     const fill = element('div', 'order-patience-fill'); track.appendChild(fill);
     const time = element('div', 'order-time');
-    bubble.append(badge, portrait, animal, icon, name, track, time); this.root.appendChild(bubble);
+    bubble.append(badge, portrait, animal, icon, name, tutorial, track, time); this.root.appendChild(bubble);
     const entry = { bubble, badge, track, fill, time, initialRemaining: order.remainingTime };
     this.entries.set(order.id, entry); return entry;
   }

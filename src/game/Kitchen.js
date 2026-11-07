@@ -1,6 +1,7 @@
 import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Station } from './Station.js';
+import { BALANCE } from './Balance.js';
 
 export class Kitchen {
   constructor() {
@@ -39,6 +40,8 @@ export class Kitchen {
 
   station(options) {
     const station = new Station(options);
+    station.interactionReach = BALANCE.interaction.reachByType[station.type.endsWith('Box') ? 'ingredientBox' : station.type];
+    station.accessibleFront = station.type !== 'assembly' && station.type !== 'trash';
     this.stations.set(station.id, station);
     this.group.add(station.model);
     return station;
@@ -95,7 +98,7 @@ export class Kitchen {
       const station = this.station({ id, position: [-7.35, z], width: 1.55, depth: 1.5, height: 1.2, rotation: Math.PI / 2 });
       // Fontes ilimitadas; os ingredientes decorativos nunca saem das caixas.
       station.ingredientSource = Object.freeze({ ingredient, label, unlimited: true });
-      station.interactionArea = Object.freeze({ position: station.getApproachPosition(), radius: 0.55 });
+      station.interactionArea = Object.freeze({ position: station.getApproachPosition(), radius: BALANCE.interaction.boxAreaRadius });
       const model = station.model;
       this.box(model, 'ingredient-box-plinth', [1.35, 0.12, 1.3], [0, 0.06, 0], 'grain');
       this.box(model, 'ingredient-box-stand', [1.45, 0.5, 1.4], [0, 0.37, 0], 'lightWood');

@@ -40,6 +40,7 @@ export class SoundSystem {
     return true;
   }
 
+  playError() { this.tone(330, 0.12, 'sine', 0, 0.35); this.tone(260, 0.14, 'sine', 0.09, 0.25); }
   playChop() { return this.tone(230, 0.055, 'triangle'); }
   playComplete() { this.tone(660, 0.14, 'sine', 0, 0.5); this.tone(880, 0.18, 'sine', 0.08, 0.4); }
 

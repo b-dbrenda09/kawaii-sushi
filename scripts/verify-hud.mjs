@@ -129,11 +129,11 @@ try {
     position:getComputedStyle(root).position,top:r.top,right:innerWidth-r.right,gap:getComputedStyle(root).gap,
     pointer:getComputedStyle(root).pointerEvents,focus:document.activeElement===g.renderer.domElement,
     cards:[...root.children].map(e=>({rect:e.getBoundingClientRect().toJSON(),name:e.querySelector('.order-name').textContent,
-      animal:e.querySelector('.order-animal').textContent,icon:e.querySelector('.order-sushi').dataset.model,
+      ingredients:e.querySelector('.order-ingredients').textContent,animal:e.querySelector('.order-animal').textContent,icon:e.querySelector('.order-sushi').dataset.model,
       time:e.querySelector('.order-time').textContent,barHeight:e.querySelector('.order-patience').getBoundingClientRect().height,
       pointer:getComputedStyle(e).pointerEvents}))};})()`);
   assert.equal(cards.position,'fixed');assert.equal(cards.top,12);assert.equal(cards.right,12);assert.equal(cards.gap,'6px');assert.equal(cards.pointer,'none');assert.ok(cards.focus);
-  cards.cards.forEach((card,i)=>{assert.equal(card.rect.width,220);assert.ok(card.rect.height<90);assert.ok(card.name&&card.animal&&card.icon&&card.time);assert.equal(card.barHeight,4);assert.equal(card.pointer,'none');
+  cards.cards.forEach((card,i)=>{assert.equal(card.rect.width,220);assert.ok(card.rect.height<120);assert.ok(card.name&&card.ingredients&&card.animal&&card.icon&&card.time);assert.equal(card.barHeight,4);assert.equal(card.pointer,'none');
     if(i)assert.ok(Math.abs(card.rect.top-cards.cards[i-1].rect.bottom-6)<.1);});
   const independence=await evaluate(`(()=>{const g=__kawaiiTestGame,orders=g.orderSystem.getActiveOrders(),before=orders.map(o=>o.remainingTime);
     g.orderSystem.update(1.25);g.orderUI.update(g.orderSystem,g.customerSystem.customers);

@@ -10,6 +10,7 @@ export class CollisionSystem {
     this.maxStep = maxStep;
     this.obstacles = new Map();
     this.result = { blockedX: false, blockedZ: false };
+    this.contactStep = new Vector3();
     this.debugGroup = null;
     this.debugCollider = null;
     this.debugRadius = null;
@@ -88,14 +89,14 @@ export class CollisionSystem {
     const start = position[axis];
     let end = start + amount;
     if (this.bounds) {
-      end = Math.max(this.bounds[minKey] + radius, Math.min(this.bounds[maxKey] - radius, end));
+      end = Math.max(this.bounds[minKey] + radius + EPSILON, Math.min(this.bounds[maxKey] - radius - EPSILON, end));
     }
     for (const obstacle of this.obstacles.values()) {
       const distance = Math.max(obstacle[otherMin] - position[other], 0, position[other] - obstacle[otherMax]);
       if (distance >= radius) continue;
       const reach = Math.sqrt(Math.max(0, radius * radius - distance * distance));
-      const low = obstacle[minKey] - reach;
-      const high = obstacle[maxKey] + reach;
+      const low = obstacle[minKey] - reach - EPSILON;
+      const high = obstacle[maxKey] + reach + EPSILON;
       if (amount > 0 && start <= low + EPSILON && end > low) end = Math.max(start, low);
       if (amount < 0 && start >= high - EPSILON && end < high) end = Math.min(start, high);
     }
@@ -116,12 +117,39 @@ export class CollisionSystem {
     this.result.blockedX = false;
     this.result.blockedZ = false;
     for (let i = 0; i < steps; i++) {
-      const movedX = this.resolveAxis(position, dx, 'x', radius);
-      const movedZ = this.resolveAxis(position, dz, 'z', radius);
+      this.contactStep.set(dx, 0, dz);
+      this.projectContact(position, this.contactStep, radius);
+      const movedX = this.resolveAxis(position, this.contactStep.x, 'x', radius);
+      const movedZ = this.resolveAxis(position, this.contactStep.z, 'z', radius);
       this.result.blockedX ||= Math.abs(movedX - dx) > EPSILON;
       this.result.blockedZ ||= Math.abs(movedZ - dz) > EPSILON;
     }
     return this.result;
+  }
+
+  // Remove só a componente que entra no sólido, preservando a tangente.
+  // Múltiplas passagens acomodam contatos consecutivos sem adicionar energia.
+  projectContact(position, vector, radius) {
+    const margin = 1e-6;
+    const project = (nx, nz) => {
+      const inward = vector.x * nx + vector.z * nz;
+      if (inward < 0) { vector.x -= inward * nx; vector.z -= inward * nz; }
+    };
+    for (let pass = 0; pass < 3; pass++) {
+      if (this.bounds) {
+        if (position.x <= this.bounds.minX + radius + margin) project(1, 0);
+        if (position.x >= this.bounds.maxX - radius - margin) project(-1, 0);
+        if (position.z <= this.bounds.minZ + radius + margin) project(0, 1);
+        if (position.z >= this.bounds.maxZ - radius - margin) project(0, -1);
+      }
+      for (const obstacle of this.obstacles.values()) {
+        const dx = position.x - Math.max(obstacle.minX, Math.min(obstacle.maxX, position.x));
+        const dz = position.z - Math.max(obstacle.minZ, Math.min(obstacle.maxZ, position.z));
+        const distance = Math.hypot(dx, dz);
+        if (distance > EPSILON && distance <= radius + margin) project(dx / distance, dz / distance);
+      }
+    }
+    return vector;
   }
 
   updateDebug(scene, collider, enabled = false) {

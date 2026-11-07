@@ -30,6 +30,7 @@ export class Player {
     this.acceleration = 12;
     this.deceleration = 16;
     this.turnSpeed = 12;
+    this.autoFaceMovement = true;
     // Centro acompanha a raiz; o raio representa o corpo, sem cabeça ou laço.
     this.collider = { position: this.group.position, radius: colliderRadius };
     this.collisionSystem = collisionSystem;
@@ -229,15 +230,14 @@ export class Player {
     this.displacement.addScaledVector(this.velocityOffset, (1 - decay) / rate);
     this.velocity.copy(this.targetVelocity).addScaledVector(this.velocityOffset, decay);
     if (this.collisionSystem) {
-      const result = this.collisionSystem.move(this.group.position, this.displacement, this.collider.radius);
-      if (result.blockedX) this.velocity.x = 0;
-      if (result.blockedZ) this.velocity.z = 0;
+      this.collisionSystem.move(this.group.position, this.displacement, this.collider.radius);
+      this.collisionSystem.projectContact(this.group.position, this.velocity, this.collider.radius);
     } else this.group.position.add(this.displacement);
     if (this.targetVelocity.lengthSq() === 0 && this.velocity.lengthSq() < 1e-8) {
       this.velocity.set(0, 0, 0);
     }
 
-    if (this.velocity.lengthSq() > 1e-6) {
+    if (this.autoFaceMovement && this.velocity.lengthSq() > 1e-6) {
       // O rosto aponta em +Z no modelo original. Sempre usa o arco mais curto em Y.
       const targetAngle = Math.atan2(this.velocity.x, this.velocity.z);
       const difference = targetAngle - this.group.rotation.y;

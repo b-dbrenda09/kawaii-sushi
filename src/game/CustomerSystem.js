@@ -82,7 +82,8 @@ export class CustomerSystem {
           customer.patienceRatio = order.remainingTime / order.maxPatience;
           customer.patienceLevel = patienceLevel(customer.patienceRatio);
         }
-        if (customer.state === S.WAITING && order?.state === ORDER_STATES.EXPIRED && this.transitId === null) {
+        if (customer.state === S.WAITING && (order?.state === ORDER_STATES.EXPIRED
+          || (order?.state === ORDER_STATES.COMPLETED && !customer.happyRemaining)) && this.transitId === null) {
           this.transitId = customer.id;
           customer.follow([new Vector3(customer.slot.position.x, 0, this.laneZ), this.entry], S.LEAVING);
         }

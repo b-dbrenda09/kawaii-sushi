@@ -48,14 +48,14 @@ export class OrderSystem {
     for (const order of this.orders.values()) {
       if (order.state !== ORDER_STATES.PENDING) continue;
       order.remainingTime = Math.max(0, order.remainingTime - deltaTime);
-      if (order.remainingTime < 1e-8) { order.remainingTime = 0; order.state = ORDER_STATES.EXPIRED; }
+      if (order.remainingTime < 1e-8) { order.remainingTime = 0; order.state = ORDER_STATES.EXPIRED; this.onExpired?.(order); }
     }
   }
 
-  // Interface reservada à futura entrega; nenhum sistema a chama nesta etapa.
+  // Apenas pedidos pendentes com paciência podem ser concluídos.
   markCompleted(id) {
     const order = this.getOrder(id);
-    if (!order || order.state !== ORDER_STATES.PENDING) return false;
+    if (!order || order.state !== ORDER_STATES.PENDING || order.remainingTime <= 0) return false;
     order.state = ORDER_STATES.COMPLETED;
     return true;
   }

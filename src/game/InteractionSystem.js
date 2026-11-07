@@ -1,4 +1,5 @@
-import { Vector3 } from 'three';
+import { Vector3, BufferGeometry, LineLoop, LineBasicMaterial } from 'three';
+import { BALANCE } from './Balance.js';
 
 export const STATION_INTERACTIONS = Object.freeze({
   salmonBox: { action: 'Pegar salmão', confirmation: 'Estação de salmão selecionada' },
@@ -14,7 +15,7 @@ export const STATION_INTERACTIONS = Object.freeze({
 
 export class InteractionSystem {
   constructor({ stations = [], collisionSystem, ui = null, onInteract = null, carrySystem = null,
-    maxDistance = 1, switchMargin = 0.08, feedbackDuration = 1.6 } = {}) {
+    maxDistance = BALANCE.interaction.maxDistance, switchMargin = 0.08, feedbackDuration = 1.6 } = {}) {
     this.stations = new Map();
     this.collisionSystem = collisionSystem;
     this.ui = ui;
@@ -58,12 +59,17 @@ export class InteractionSystem {
     const dz = this.contact.z - position.z;
     const distance = Math.hypot(dx, dz);
     // Centros inválidos dentro do móvel também não podem acionar a estação.
-    if (distance < player.collider.radius - 1e-6 || distance > this.maxDistance) return null;
+    if (distance < player.collider.radius - 1e-6 || distance > Math.min(this.maxDistance, entry.station.interactionReach ?? this.maxDistance)) return null;
+    if (entry.station.accessibleFront) {
+      const offsetX = position.x - entry.station.position.x, offsetZ = position.z - entry.station.position.z;
+      if (offsetX * entry.station.front.x + offsetZ * entry.station.front.z < entry.station.localDimensions.depth / 2 + player.collider.radius - 1e-6) return null;
+    }
     const area = entry.station.interactionArea;
     if (area && Math.hypot(position.x - area.position.x, position.z - area.position.z) > area.radius) return null;
     if (!this.collisionSystem?.hasLineOfSight(position, this.contact, entry.station.id)) return null;
     const alignment = (Math.sin(player.group.rotation.y) * dx + Math.cos(player.group.rotation.y) * dz) / distance;
-    return { entry, distance, alignment };
+    const available = this.carrySystem?.describe(entry.station).available !== false;
+    return { entry, distance, alignment, available };
   }
 
   update(deltaTime, player, { interactPressed = false, disabled = false } = {}) {
@@ -81,14 +87,16 @@ export class InteractionSystem {
       const candidate = this.measure(entry, player);
       if (!candidate) continue;
       if (entry === this.active) current = candidate;
-      if (!best || candidate.distance < best.distance - 1e-6
-        || (Math.abs(candidate.distance - best.distance) <= 1e-6 && (candidate.alignment > best.alignment + 1e-6
-          || (Math.abs(candidate.alignment - best.alignment) <= 1e-6 && entry.station.id < best.entry.station.id)))) {
+      const closer = !best || candidate.distance < best.distance - 1e-6;
+      const tie = best && Math.abs(candidate.distance - best.distance) <= 1e-6;
+      const facing = best && (candidate.alignment > best.alignment + 1e-6
+        || (Math.abs(candidate.alignment - best.alignment) <= 1e-6 && entry.station.id < best.entry.station.id));
+      if (!best || (candidate.available && !best.available) || (candidate.available === best.available && (closer || (tie && facing)))) {
         best = candidate;
       }
     }
     // Mantém a seleção nos empates e pequenas oscilações, sempre dentro do alcance.
-    if (current && best && current.distance <= best.distance + this.switchMargin) best = current;
+    if (current && best && current.available === best.available && current.distance <= best.distance + this.switchMargin) best = current;
     this.active = best?.entry ?? null;
     if (this.active && this.carrySystem) Object.assign(this.active, this.carrySystem.describe(this.active.station));
     let event = null;
@@ -102,6 +110,7 @@ export class InteractionSystem {
       this.onInteract?.(event);
       if (this.active && this.carrySystem) Object.assign(this.active, this.carrySystem.describe(this.active.station));
     }
+    this.updateHighlight();
     this.ui?.render(this.active, this.message);
     return event;
   }
@@ -110,6 +119,7 @@ export class InteractionSystem {
     this.active = null;
     this.message = '';
     this.feedbackRemaining = 0;
+    if (this.highlight) this.highlight.visible = false;
     this.ui?.render(null, '');
   }
 
@@ -117,6 +127,21 @@ export class InteractionSystem {
     if (this.disposed) return;
     this.reset();
     this.stations.clear();
+    this.highlight?.removeFromParent(); this.highlight?.geometry.dispose(); this.highlight?.material.dispose();
     this.disposed = true;
+  }
+
+  updateHighlight() {
+    const station = this.activeStation;
+    if (!station) { if (this.highlight) this.highlight.visible = false; return; }
+    if (!this.highlight) {
+      const points = [[-.5, 0, -.5], [.5, 0, -.5], [.5, 0, .5], [-.5, 0, .5]].map(p => new Vector3(...p));
+      this.highlight = new LineLoop(new BufferGeometry().setFromPoints(points), new LineBasicMaterial({ color: '#e883b6' }));
+      this.highlight.name = 'selected-station-highlight';
+    }
+    station.model.parent?.add(this.highlight);
+    this.highlight.position.set(station.position.x, station.dimensions.height + .025, station.position.z);
+    this.highlight.scale.set(station.dimensions.width + .04, 1, station.dimensions.depth + .04);
+    this.highlight.visible = true;
   }
 }

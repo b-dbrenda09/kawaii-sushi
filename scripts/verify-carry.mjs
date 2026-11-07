@@ -214,7 +214,7 @@ player.group.position.set(0, 0, 2.2); player.cooldownRemaining = 0;
 for (let i = 0; i < 30; i++) player.update(0.05, new Vector3(0, 0, -1), i === 0);
 assert.ok(player.group.position.z >= 1.2 + player.collider.radius - 1e-8);
 assert.equal(carry.carriedIngredient, movingItem);
-player.group.position.copy(world.kitchen.spawnPosition); player.stopMoving();
+player.group.position.set(0, 0, 6.8); player.stopMoving();
 const beforeFloor = events.length;
 key('keydown'); update(); key('keyup');
 assert.equal(events.length, beforeFloor);
