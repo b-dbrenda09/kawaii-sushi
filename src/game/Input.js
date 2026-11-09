@@ -23,7 +23,7 @@ export class Input {
     this.direction = new Vector3();
 
     this.onKeyDown = (event) => {
-      if (!this.enabled || !(MOVEMENT_KEYS.has(event.code) || DASH_KEYS.has(event.code) || ['KeyE', 'KeyR', 'KeyQ', 'KeyF'].includes(event.code))) return;
+      if (!this.enabled || !(MOVEMENT_KEYS.has(event.code) || DASH_KEYS.has(event.code) || ['KeyE', 'KeyR'].includes(event.code))) return;
       if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       if (event.target?.isContentEditable || event.target?.closest?.('input, textarea, select')) return;
       // As setas não devem rolar a página enquanto controlam o jogo.
@@ -81,7 +81,7 @@ export class Input {
       const angle = this.player.group.rotation.y;
       this.forward.set(Math.sin(angle), 0, Math.cos(angle));
       this.right.set(-Math.cos(angle), 0, Math.sin(angle));
-      this.direction.copy(this.forward).multiplyScalar(vertical).addScaledVector(this.right, horizontal);
+      this.direction.copy(this.forward).multiplyScalar(vertical);
     } else this.direction.set(horizontal, 0, -vertical);
     // W+D tem o mesmo módulo que W: nenhuma vantagem de velocidade na diagonal.
     return this.direction.normalize();
@@ -89,7 +89,8 @@ export class Input {
 
   getTurn() {
     if (!this.enabled || this.actionsBlocked || this.settings?.movementMode !== MOVEMENT_MODES.CHARACTER) return 0;
-    return Number(this.keys.has('KeyQ')) - Number(this.keys.has('KeyF'));
+    return Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'))
+      - Number(this.keys.has('KeyD') || this.keys.has('ArrowRight'));
   }
 
   reset() {

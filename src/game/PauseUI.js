@@ -15,7 +15,7 @@ export class PauseUI {
     this.panel.setAttribute('role', 'dialog'); this.panel.setAttribute('aria-modal', 'true');
     this.panel.setAttribute('aria-labelledby', 'pause-title'); this.root.appendChild(this.panel); container.appendChild(this.root);
     this.onKeyDown = (event) => {
-      if (session.mode === 'RECIPE_BOOK') return;
+      if (session.mode === 'RECIPE_BOOK' || session.mode === 'FINISHED') return;
       if (event.code === 'Escape') {
         event.preventDefault(); if (!event.repeat) session.escape();
       }
@@ -33,7 +33,7 @@ export class PauseUI {
   render() {
     const mode = this.session.mode;
     this.root.dataset.mode = mode;
-    if (mode === 'RECIPE_BOOK') { this.root.hidden = true; this.root.onanimationend = null; return; }
+    if (mode === 'RECIPE_BOOK' || mode === 'FINISHED') { this.root.hidden = true; this.root.onanimationend = null; return; }
     if (!this.session.paused) {
       this.root.classList.add('is-closing');
       this.root.style.pointerEvents = 'none';

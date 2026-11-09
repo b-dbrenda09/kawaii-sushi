@@ -29,7 +29,7 @@ export class RecipeBookUI {
     doc.defaultView.addEventListener('keydown', this.onKeyDown);
   }
   open() {
-    if (!this.root.hidden) return;
+    if (!this.root.hidden || this.session.mode === 'FINISHED') return;
     this.session.openRecipeBook();
     this.root.hidden = false; this.button.setAttribute('aria-expanded', 'true');
     this.render(); this.panel.querySelector('[data-book-action="close"]').focus({ preventScroll: true });

@@ -19,7 +19,7 @@ export class OrderSystem {
   }
 
   createForCustomer(customer) {
-    if (this.disposed || customer.state !== 'WAITING' || !customer.arrivalComplete) return null;
+    if (this.canChange?.() === false || this.disposed || customer.state !== 'WAITING' || !customer.arrivalComplete) return null;
     const existing = this.getOrderForCustomer(customer.id);
     if (existing) return existing;
     const recipe = RECIPES[Math.min(RECIPES.length - 1, Math.max(0, Math.floor(this.random() * RECIPES.length)))];
@@ -28,6 +28,7 @@ export class OrderSystem {
       recipeName: recipe.name, maxPatience, remainingTime: maxPatience, state: ORDER_STATES.PENDING };
     this.orders.set(order.id, order); this.byCustomer.set(customer.id, order.id);
     customer.orderId = order.id; customer.requestedRecipe = recipe.id; customer.patienceTime = maxPatience;
+    this.onCreated?.(order);
     return order;
   }
 
@@ -44,7 +45,7 @@ export class OrderSystem {
   getActiveOrders() { return [...this.orders.values()].filter((order) => order.state === ORDER_STATES.PENDING); }
 
   update(deltaTime) {
-    if (this.disposed || !Number.isFinite(deltaTime) || deltaTime <= 0) return;
+    if (this.canChange?.() === false || this.disposed || !Number.isFinite(deltaTime) || deltaTime <= 0) return;
     for (const order of this.orders.values()) {
       if (order.state !== ORDER_STATES.PENDING) continue;
       order.remainingTime = Math.max(0, order.remainingTime - deltaTime);
@@ -54,9 +55,11 @@ export class OrderSystem {
 
   // Apenas pedidos pendentes com paciência podem ser concluídos.
   markCompleted(id) {
+    if (this.canChange?.() === false) return false;
     const order = this.getOrder(id);
     if (!order || order.state !== ORDER_STATES.PENDING || order.remainingTime <= 0) return false;
     order.state = ORDER_STATES.COMPLETED;
+    this.onCompleted?.(order);
     return true;
   }
 

@@ -1,12 +1,14 @@
 ﻿export class SessionState {
   constructor(onChange = () => {}) { this.mode = 'MENU'; this.controlsOrigin = 'MENU'; this.onChange = onChange; }
+  get state() { return this.mode === 'PLAYING' ? 'RUNNING' : this.mode === 'FINISHED' ? 'FINISHED' : 'PAUSED'; }
+  finish() { this.set('FINISHED'); }
   get paused() { return this.mode !== 'PLAYING'; }
   openRecipeBook() {
-    if (this.mode === 'RECIPE_BOOK') return;
+    if (this.mode === 'RECIPE_BOOK' || this.mode === 'FINISHED') return;
     this.recipeBookOrigin = this.mode; this.set('RECIPE_BOOK');
   }
   closeRecipeBook() { if (this.mode === 'RECIPE_BOOK') this.set(this.recipeBookOrigin ?? 'PAUSED'); }
-  set(mode) { if (mode !== this.mode) { this.mode = mode; this.onChange(this); } }
+  set(mode) { if (this.mode === 'FINISHED') return; if (mode !== this.mode) { this.mode = mode; this.onChange(this); } }
   play() { this.set('PLAYING'); }
   pause() { if (this.mode === 'PLAYING') this.set('PAUSED'); }
   settings() { this.settingsOrigin = this.mode === 'MENU' ? 'MENU' : 'PAUSED'; this.set('SETTINGS'); }

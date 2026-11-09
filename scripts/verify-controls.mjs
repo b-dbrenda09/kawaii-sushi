@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { ControlSettings } from '../src/game/ControlSettings.js';
 import { Input } from '../src/game/Input.js';
+import { Game } from '../src/game/Game.js';
+import { BALANCE } from '../src/game/Balance.js';
 import { Player } from '../src/game/Player.js';
 import { Camera } from '../src/game/Camera.js';
 import { CollisionSystem } from '../src/game/CollisionSystem.js';
@@ -27,7 +29,7 @@ for (const mode of ['map', 'camera', 'character']) {
   const right = mode === 'map' ? new Vector3(1, 0, 0) : mode === 'camera'
     ? new Vector3(-forward.z, 0, forward.x) : new Vector3(-Math.cos(.7), 0, Math.sin(.7));
   for (const [code, expected] of [['KeyW', forward], ['ArrowUp', forward], ['KeyS', forward.clone().negate()], ['ArrowDown', forward.clone().negate()],
-    ['KeyD', right], ['ArrowRight', right], ['KeyA', right.clone().negate()], ['ArrowLeft', right.clone().negate()]]) {
+    ['KeyD', mode === 'character' ? new Vector3() : right], ['ArrowRight', mode === 'character' ? new Vector3() : right], ['KeyA', mode === 'character' ? new Vector3() : right.clone().negate()], ['ArrowLeft', mode === 'character' ? new Vector3() : right.clone().negate()]]) {
     input.reset(); key('keydown', code); assert.ok(input.getDirection().distanceTo(expected) < 1e-10);
   }
   input.reset(); key('keydown', 'KeyW'); key('keydown', 'KeyD'); assert.ok(Math.abs(input.getDirection().length() - 1) < 1e-10);
@@ -40,7 +42,40 @@ for (const code of ['KeyA', 'KeyD', 'KeyS']) {
   for (let i = 0; i < 30; i++) player.update(1 / 60, input.getDirection());
   assert.equal(player.group.rotation.y, angle);
 }
-input.reset(); key('keydown', 'KeyQ'); assert.equal(input.getTurn(), 1); key('keyup', 'KeyQ'); key('keydown', 'KeyF'); assert.equal(input.getTurn(), -1);
+for (const [code, turn] of [['KeyA', 1], ['ArrowLeft', 1], ['KeyD', -1], ['ArrowRight', -1]]) {
+  input.reset(); key('keydown', code); assert.equal(input.getTurn(), turn);
+  input.setActionsBlocked(true); assert.equal(input.getTurn(), 0);
+}
+input.reset(); key('keydown', 'KeyQ'); key('keydown', 'KeyF'); assert.equal(input.getTurn(), 0);
+
+// Exercita o mesmo caminho da simula??o, incluindo bloqueios e curvas.
+const previousDocument = globalThis.document;
+globalThis.document = { hidden: false };
+const game = Object.create(Game.prototype);
+Object.assign(game, { session: { paused: false }, input, controlSettings: settings,
+  world: { player, update: (dt, direction, dash) => player.update(dt, direction, dash) },
+  preparation: { isCutting: false, updatePreparation() {}, updateAssembly() {} },
+  customerSystem: { update() {} }, interactionSystem: { update() {} } });
+try {
+  const results = [];
+  for (const fps of [20, 30, 60, 144]) {
+    player.stopMoving(); player.group.position.set(0, 0, 0); player.group.rotation.y = 0;
+    input.reset(); key('keydown', 'KeyW'); key('keydown', 'KeyA');
+    for (let i = 0; i < fps; i++) game.updateSimulation(1 / fps);
+    assert.ok(Math.abs(player.group.rotation.y - BALANCE.player.characterTurnSpeed) < 1e-10);
+    results.push(player.group.position.clone());
+  }
+  for (const result of results) assert.ok(result.distanceTo(results[0]) < .02, 'Curvas equivalentes entre FPS');
+  const position = player.group.position.clone(), angle = player.group.rotation.y;
+  game.session.paused = true; game.updateSimulation(.05);
+  assert.ok(player.group.position.equals(position)); assert.equal(player.group.rotation.y, angle);
+  game.session.paused = false; player.beginCutting(player.group.position.clone().add(new Vector3(0, 0, 2)));
+  game.updateSimulation(.05);
+  assert.ok(player.group.position.equals(position)); assert.equal(player.group.rotation.y, angle);
+  player.endCutting(); input.reset();
+} finally {
+  if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument;
+}
 
 const wall = new CollisionSystem(); wall.registerObstacle({ id: 'wall', position: { x: 1, z: 0 }, width: .1, depth: 10 });
 player.collisionSystem = wall;
@@ -80,4 +115,4 @@ selection.registerStation(a, { action: 'box' }); selection.registerStation(b, { 
 world.player.group.position.set(0, 0, 0); selection.update(.02, world.player, { interactPressed: true });
 assert.equal(selection.activeStation?.id, b.id); assert.equal(count, 1);
 selection.dispose(); isolated.dispose(); interaction.dispose(); collision.dispose(); world.dispose(); wall.dispose(); input.dispose(); player.dispose();
-console.log('OK: tres modos WASD/setas, diagonal, camera fixa, strafe/re, persistencia/fallback, pausa, giro Q/F, caminhada/dash com deslizamento em quatro FPS, alcance +30%, lados acessiveis, selecao valida unica.');
+console.log('OK: tres modos WASD/setas, diagonal, camera fixa, frente/re, persistencia/fallback, pausa, giro A/D e setas, caminhada/dash com deslizamento em quatro FPS, alcance +30%, lados acessiveis, selecao valida unica.');

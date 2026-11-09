@@ -19,11 +19,15 @@ import { ScoreSystem } from './ScoreSystem.js';
 import { ScoreUI } from './ScoreUI.js';
 import { RecipeBookUI } from './RecipeBookUI.js';
 import { ControlSettings } from './ControlSettings.js';
+import { GameTimer } from './GameTimer.js';
+import { GameResults } from './GameResults.js';
+import { ResultsUI } from './ResultsUI.js';
+import { BALANCE } from './Balance.js';
 
 export class Game {
-  constructor(container, { onMainMenu = () => window.location.reload() } = {}) {
+  constructor(container, { onMainMenu = () => window.location.reload(), controlSettings = null } = {}) {
     if (!container) throw new Error('Contêiner #app não encontrado.');
-    this.container = container;
+    this.container = container; this.onMainMenu = onMainMenu;
     this.running = false; this.disposed = false; this.frameId = null; this.previousTime = null;
     this.renderer = new WebGLRenderer({ antialias: true });
     try {
@@ -42,7 +46,7 @@ export class Game {
       this.orderUI = new OrderUI(container);
       this.camera = new Camera(container.clientWidth, container.clientHeight, this.world.bounds);
       let storage = null; try { storage = window.localStorage; } catch { /* Preferência em memória. */ }
-      this.controlSettings = new ControlSettings({ storage });
+      this.controlSettings = controlSettings ?? new ControlSettings({ storage });
       this.input = new Input(this.camera.camera, { settings: this.controlSettings, player: this.world.player });
       this.interactionUI = new InteractionUI(container);
       this.ingredientFactory = new IngredientFactory(); this.sushiFactory = new SushiFactory();
@@ -52,7 +56,16 @@ export class Game {
         factory: this.ingredientFactory, sushiFactory: this.sushiFactory, sound: this.sound, container });
       this.scoreUI = new ScoreUI(container);
       this.scoreSystem = new ScoreSystem(event => this.scoreUI.render(event));
-      this.orderSystem.onExpired = () => this.scoreSystem.expire();
+      this.gameTimer = new GameTimer();
+      this.results = new GameResults();
+      this.resultsUI = new ResultsUI(container, () => this.restart());
+      this.resultsUI.update(this.gameTimer);
+      this.scoreSystem.canChange = () => this.session?.mode === 'PLAYING' && !this.disposed;
+      this.orderSystem.canChange = () => this.session?.mode === 'PLAYING' && !this.disposed;
+      this.orderSystem.onCreated = order => this.results.record('generated', order);
+      this.orderSystem.onCompleted = order => this.results.record('delivered', order);
+      this.orderSystem.onExpired = order => { this.results.record('expired', order); this.scoreSystem.expire(); };
+      this.scoreSystem.onIncorrect = () => this.results.record('incorrect');
       this.deliverySystem = new DeliverySystem({ station: this.world.kitchen.stations.get('delivery'),
         carrySystem: this.carrySystem, customerSystem: this.customerSystem, scoreSystem: this.scoreSystem,
         sound: this.sound, isPaused: () => !this.session || this.session.paused || document.hidden || this.disposed });
@@ -105,21 +118,32 @@ export class Game {
   // Uma única porta de atualização: pausa congela física, animações e todos os relógios.
   updateSimulation(frameDelta) {
     if (this.session.paused || document.hidden || this.disposed) return;
+    if (this.gameTimer?.update(frameDelta)) { this.finish(); return; }
+    if (this.gameTimer) this.resultsUI.update(this.gameTimer);
     const deltaTime = Number.isFinite(frameDelta) ? Math.max(0, Math.min(frameDelta, 0.05)) : 0;
     const elapsed = Number.isFinite(frameDelta) ? Math.max(0, frameDelta) : 0;
     const wasCutting = this.preparation.isCutting;
-    this.input.setActionsBlocked(wasCutting);
+    this.input.setActionsBlocked(wasCutting || this.world.player.movementLocked);
     const wasDashing = this.world.player.dashRemaining > 0;
     const interactPressed = this.input.consumeInteraction();
     const player = this.world.player;
     player.autoFaceMovement = this.controlSettings?.movementMode !== 'character';
-    if (!wasCutting && !wasDashing) player.group.rotation.y += (this.input.getTurn?.() ?? 0) * 2.8 * deltaTime;
     const direction = this.input.getDirection(); const dashPressed = this.input.consumeDash();
     this.preparation.updatePreparation(elapsed);
     this.deliverySystem?.update(elapsed);
     this.scoreUI?.update(elapsed);
     this.customerSystem.update(elapsed);
-    this.world.update(deltaTime, wasCutting ? null : direction, wasCutting ? false : dashPressed);
+    // Giro no ponto médio de passos curtos mantém curvas estáveis em diferentes FPS.
+    const steps = player.autoFaceMovement ? 1 : Math.max(1, Math.ceil(deltaTime * 120));
+    const step = deltaTime / steps;
+    for (let i = 0; i < steps; i++) {
+      const turn = !wasCutting && !player.movementLocked
+        ? (this.input.getTurn?.() ?? 0) * BALANCE.player.characterTurnSpeed * step : 0;
+      player.group.rotation.y += turn / 2;
+      const stepDirection = player.autoFaceMovement ? direction : this.input.getDirection();
+      this.world.update(step, wasCutting ? null : stepDirection, !wasCutting && i === 0 && dashPressed);
+      player.group.rotation.y += turn / 2;
+    }
     this.interactionSystem.update(deltaTime, this.world.player, { interactPressed: !wasCutting && interactPressed, disabled: wasDashing });
     this.input.setActionsBlocked(this.preparation.isCutting);
     this.preparation.updateAssembly(elapsed, { selectedStation: this.interactionSystem.activeStation,
@@ -139,6 +163,28 @@ export class Game {
       this.updateOrderUI();
     }
     this.renderer.render(this.world.scene, this.camera.camera);
+  }
+
+  finish() {
+    if (this.session.mode === 'FINISHED' || this.disposed) return;
+    this.session.finish();
+    this.world.player.stopMoving();
+    this.input.setEnabled(false); this.interactionSystem.reset();
+    this.recipeBookUI.button.disabled = true;
+    this.resultsUI.update(this.gameTimer);
+    this.resultsUI.show(this.results.finish(this.scoreSystem.score));
+  }
+
+  restart() {
+    if (this.session.mode !== 'FINISHED' || this.disposed) return;
+    const settings = this.controlSettings, container = this.container, onMainMenu = this.onMainMenu;
+    this.dispose();
+    const fresh = new Game(container, { onMainMenu, controlSettings: settings });
+    this.nextGame = fresh;
+    this.dispose = () => fresh.dispose();
+    fresh.controlSettings.setMovementMode(settings.movementMode);
+    fresh.session.play(); fresh.start();
+    return fresh;
   }
 
   updateOrderUI() {
@@ -169,6 +215,7 @@ export class Game {
     this.stop(); this.disposed = true;
     window.removeEventListener('resize', this.resize); document.removeEventListener('visibilitychange', this.handleVisibility);
     this.recipeBookUI?.dispose(); this.pauseUI?.dispose(); this.input?.dispose(); this.interactionSystem?.dispose(); this.interactionUI?.dispose();
+    this.resultsUI?.dispose();
     this.deliverySystem?.dispose(); this.scoreUI?.dispose();
     this.preparation?.dispose(); this.sound?.dispose(); this.carrySystem?.dispose(); this.sushiFactory?.dispose(); this.ingredientFactory?.dispose();
     this.customerSystem?.dispose(); this.orderUI?.dispose(); this.collisionSystem?.dispose(); this.world?.dispose();
