@@ -3,6 +3,7 @@ const base = `${import.meta.env?.BASE_URL ?? '/'}assets/logos-personalizadas/`;
 export const CUSTOM_ASSETS = Object.freeze({
   menuLogo: `${base}logo-menu.png`,
   questionDecoration: `${base}fundo-perguntas.png`,
+  questionLogo: `${import.meta.env?.BASE_URL ?? '/'}assets/logos-perguntas/logo-perguntas.png`,
   loadingLogo: `${base}logo-carregamento.png`,
 });
 

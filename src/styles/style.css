@@ -328,13 +328,47 @@ canvas {
 .mode-panel h1 { color: #d75692; font-size: clamp(30px, 6vw, 52px); margin: 8px 0; letter-spacing: .035em; font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif; text-shadow: 0 2px 0 #fff, 0 4px 0 #f6cadd; }
 .restaurant-brand { color: #c56494; font: bold 18px "Arial Rounded MT Bold", "Trebuchet MS", sans-serif; letter-spacing: .025em; }
 .mode-subtitle { font-size: 20px; }
-.mode-options { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 28px 0; }
-.mode-options button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 25px 14px; border: 2px solid #eaa1c1; border-radius: 23px; color: #79455e; background: #ffe3f0; cursor: pointer; font: inherit; box-shadow: 0 5px 0 #eac0d4; }
-.mode-options button[data-mode=coop] { background: #e4f3ff; border-color: #a7d6ee; box-shadow: 0 5px 0 #bfdce9; }
-.mode-options button:hover { transform: translateY(-3px); }
-.mode-options button:focus-visible { outline: 3px solid #985683; outline-offset: 4px; }
-.mode-options small { font-size: 12px; line-height: 1.8; }
+.mode-options { display: grid; grid-template-columns: minmax(0, 280px); justify-content: center; gap: 15px; margin: 18px 0; }
+.mode-options button { position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 100%; height: 56px; padding: 0 30px; border: 2px solid #eaa1c1; border-radius: 999px; color: #923958; background: #ffdaea; cursor: pointer; font: 700 15px/1.2 "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif; box-shadow: 0 4px 12px #b75b8220, inset 0 1px 0 #ffffffb3; transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease, background-color 200ms ease; }
+.mode-options button::before, .mode-options button::after { content: ''; position: absolute; top: 50%; width: 10px; height: 10px; background: #dc8aab; clip-path: polygon(50% 20%, 65% 5%, 85% 5%, 100% 25%, 100% 45%, 50% 95%, 0 45%, 0 25%, 15% 5%, 35% 5%); transform: translateY(-50%); pointer-events: none; }
+.mode-options button::before { left: 19px; }
+.mode-options button::after { right: 19px; }
+.mode-options button[data-mode=coop] { background: #fff9fc; border-color: #efbfd3; }
+.mode-options button[data-action=options] { background: #fff0f7; border-color: #edb4cf; }
+@media (hover: hover) {
+  .mode-options button:hover { transform: scale(1.035); border-color: #db7aa5; background: #ffe8f2; box-shadow: 0 6px 18px #b75b8233; }
+}
+.mode-options button:active { transform: scale(.97); box-shadow: 0 2px 5px #b75b8226; }
+.mode-options button:focus-visible { outline: 3px solid #a74676; outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) { .mode-options button { transition: none; } .mode-options button:hover, .mode-options button:active { transform: none; } }
 .mode-footer { font-size: 13px; }
+.mode-menu { box-sizing: border-box; align-items: safe center; }
+.mode-panel[hidden], .options-panel[hidden] { display: none; }
+html[data-menu-decorations="false"] .mode-decoration { visibility: hidden; }
+html[data-menu-decorations="false"] .mode-options button::before,
+html[data-menu-decorations="false"] .mode-options button::after { display: none; }
+.options-panel { box-sizing: border-box; width: min(640px, 100%); max-height: calc(100dvh - 48px); overflow: auto; padding: clamp(18px, 4vw, 30px); border: 2px solid #fff; border-radius: 30px; background: #fff9fc; color: #754b62; box-shadow: 0 18px 60px #a5577a20; text-align: left; }
+.options-panel h1 { margin: 0; color: #c14c83; text-align: center; font: 700 28px "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif; }
+.options-intro { margin: 6px 0 18px; text-align: center; }
+.options-panel fieldset { min-width: 0; margin: 0 0 18px; padding: 14px; border: 1px solid #efbfd3; border-radius: 18px; }
+.options-panel legend { padding: 0 8px; color: #a3426d; font-weight: 700; font-size: 13px; letter-spacing: .08em; }
+.options-volume { display: grid; grid-template-columns: minmax(0, 1fr) 48px; gap: 4px 10px; margin-bottom: 12px; font-size: 14px; }
+.options-volume output { grid-column: 2; grid-row: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.options-volume input { grid-column: 1 / -1; width: 100%; min-width: 0; min-height: 24px; margin: 0; accent-color: #ce6d9c; }
+.options-check { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 14px; }
+.options-check input { width: 18px; height: 18px; accent-color: #ce6d9c; }
+.options-panel button { display: block; box-sizing: border-box; width: min(280px, 100%); min-height: 48px; margin-inline: auto; padding: 10px 18px; border: 2px solid #eaa1c1; border-radius: 999px; background: #ffe0ed; color: #923958; cursor: pointer; font: 700 14px "Trebuchet MS", system-ui, sans-serif; box-shadow: 0 3px 10px #b75b821a; transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease; }
+@media (hover: hover) { .options-panel button:not(:disabled):hover { transform: scale(1.025); border-color: #d47ca4; box-shadow: 0 5px 14px #b75b8230; } }
+.options-panel button:not(:disabled):active { transform: scale(.97); }
+.options-panel button:disabled { opacity: .6; cursor: default; }
+.options-panel :is(button, input, select):focus-visible { outline: 3px solid #a74676; outline-offset: 4px; }
+.options-panel h2 { margin: 12px 0 4px; font-size: 14px; color: #a3426d; }
+.options-panel fieldset p { margin: 6px 0 12px; font-size: 13px; overflow-wrap: anywhere; }
+.options-panel .options-help { color: #80516b; font-size: 12px; }
+.options-panel .options-help:empty { display: none; }
+.options-movement { display: grid; gap: 8px; font-size: 14px; }
+.options-movement select { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px; border: 1px solid #df9dbd; border-radius: 12px; background: #fff; color: #754b62; font: inherit; }
+@media (prefers-reduced-motion: reduce) { .options-panel button { transition: none; } .options-panel button:not(:disabled):is(:hover, :active) { transform: none; } }
 .player-marker { position: absolute; z-index: 2; pointer-events: none; transform: translate(-50%, -100%); background: #f9bed9; border: 2px solid white; color: #783553; padding: 2px 9px; border-radius: 12px; font: bold 12px system-ui; }
 .player-marker { box-shadow: 0 1px 4px #59334535; padding-inline: 6px; font-size: 11px; }
 .player-marker[data-player=p2] { background: #c5e8fa; color: #315f7a; }
@@ -342,7 +376,7 @@ canvas {
 .interaction-ui[data-player=p2] { left: 75%; }
 .interaction-ui[data-player=p2] .interaction-hint { background: #f0faff; border-color: #acd5ea; }
 .interaction-ui[data-player=p2] kbd { width: auto; padding: 0 5px; background: #d8eefb; }
-@media (max-width: 600px) { .mode-options { grid-template-columns: 1fr; } .mode-panel { padding: 20px 14px; } .mode-options button { padding: 15px 10px; } .mode-decoration { font-size: 25px; } .interaction-ui[data-player] .interaction-hint { gap: 4px; padding: 5px; } }
+@media (max-width: 600px) { .mode-panel { padding: 20px 14px; } .mode-decoration { font-size: 25px; } .interaction-ui[data-player] .interaction-hint { gap: 4px; padding: 5px; } }
 
 /* Fire notices are overlays; order panels and camera framing keep their layout. */
 .fire-hud { position: absolute; z-index: 15; top: 66px; left: 16px; max-width: calc(100% - 32px); padding: 7px 11px; border: 2px solid #efb28e; border-radius: 14px; background: #fff4e7; color: #a04e43; font: 700 12px/1.4 system-ui,sans-serif; pointer-events: none; }
@@ -355,8 +389,28 @@ canvas {
 .question-overlay[hidden], .question-overlay [hidden] { display: none !important; }
 .question-panel { box-sizing: border-box; width: min(540px, 100%); max-height: calc(100dvh - 32px); overflow: auto; overscroll-behavior: contain; padding: clamp(16px, 4vw, 28px); border: 3px solid #efaccb; border-radius: 28px; background: #fff8fc; box-shadow: 0 18px 60px #59364c50; color: #70465f; font: 15px/1.45 "Trebuchet MS", system-ui, sans-serif; }
 .custom-asset { display: block; width: 100%; object-fit: contain; margin: 0 auto 12px; }
-.custom-asset-menuLogo { max-width: 320px; height: clamp(70px, 20dvh, 160px); }
+.custom-asset-menuLogo { max-width: 450px; height: auto; margin: 0 auto; }
+.mode-panel:has(.custom-asset-menuLogo) { box-sizing: border-box; }
+@media (max-height: 800px) {
+  .mode-menu:has(.custom-asset-menuLogo) { box-sizing: border-box; padding: 12px; }
+  .mode-panel:has(.custom-asset-menuLogo) { padding-block: 12px; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-decoration { font-size: 25px; line-height: 1; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-eyebrow { margin-block: 4px; }
+  .mode-panel:has(.custom-asset-menuLogo) h1 { margin-block: 4px; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-subtitle { margin-block: 6px; font-size: 18px; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-options { margin-block: 12px; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-footer { margin-block: 6px; font-size: 12px; line-height: 1.4; }
+}
+@media (max-height: 700px) {
+  .mode-panel:has(.custom-asset-menuLogo) { padding-block: 8px; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-decoration { display: none; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-eyebrow { margin-block: 2px; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-subtitle { margin-block: 4px; line-height: 1.3; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-options { margin-block: 8px; }
+  .mode-panel:has(.custom-asset-menuLogo) .mode-footer { margin-block: 4px; font-size: 11px; line-height: 1.3; }
+}
 .custom-asset-questionDecoration { max-width: 360px; height: clamp(64px, 19dvh, 150px); }
+.custom-asset-questionLogo { max-width: 240px; height: auto; margin: 0 auto 12px; }
 .question-ribbon { text-align: center; font-size: 25px; }
 .question-owner { margin: 7px 0; text-align: center; color: #a1517a; font-weight: bold; }
 .question-panel h1 { margin: 8px 0; text-align: center; color: #b95788; font-size: clamp(22px, 5vw, 30px); }

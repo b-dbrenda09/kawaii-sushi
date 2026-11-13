@@ -8,7 +8,7 @@ export class QuestionUI {
     this.root = doc.createElement('div'); this.root.className = 'question-overlay'; this.root.hidden = true;
     this.root.innerHTML = '<section class="question-panel" role="dialog" aria-modal="true" aria-labelledby="question-title" aria-describedby="question-owner question-prompt"><div class="question-ribbon" aria-hidden="true">🎀 🍣 🎀</div><p id="question-owner" class="question-owner"></p><h1 id="question-title">Desafio da entrega!</h1><p class="question-demo">Demonstração · tema a definir</p><div class="question-form"><p id="question-prompt"></p><div class="question-options" role="radiogroup" aria-label="Alternativas"></div><p class="question-controls"></p><button class="question-confirm" type="button" disabled>Confirmar resposta</button></div><div class="question-result" role="status" aria-live="assertive" hidden><h2></h2><p class="question-result-detail"></p><p class="question-explanation"></p><button class="question-confirm question-continue" type="button" disabled>Continuar</button></div></section>';
     this.panel = this.root.querySelector('section'); this.owner = this.root.querySelector('.question-owner');
-    mountCustomAsset(this.panel, 'questionDecoration', { fallback: this.root.querySelector('.question-ribbon') });
+    mountCustomAsset(this.panel, 'questionLogo', { fallback: this.root.querySelector('.question-ribbon'), alt: 'Logo das perguntas' });
     this.prompt = this.root.querySelector('#question-prompt'); this.form = this.root.querySelector('.question-form');
     this.options = Array.from({ length: 4 }, (_, index) => {
       const button = doc.createElement('button'); button.type = 'button'; button.className = 'question-option';

@@ -1,25 +1,66 @@
+import { gameSettings } from '../config/GameSettings.js';
+
 export class SoundSystem {
-  constructor({ target = window, volume = 0.16, enabled = true } = {}) {
+  constructor({ target = window, volume = 0.16, enabled = true, settings = gameSettings } = {}) {
     this.target = target;
     this.volume = volume;
     this.enabled = enabled;
     this.context = null;
     this.nodes = new Set();
     this.disposed = false;
+    this.settings = settings;
+    this.musicNotes = new Set();
+    this.unsubscribeSettings = settings.subscribe(() => this.applySettings());
     this.unlock = () => {
       if (!this.enabled || this.disposed) return;
       const AudioContext = target.AudioContext ?? target.webkitAudioContext;
       if (!AudioContext) return;
       try {
-        this.context ??= new AudioContext();
-        this.context.resume().catch(() => {});
+        if (!this.context) {
+          this.context = new AudioContext();
+          this.masterGain = this.context.createGain();
+          this.effectsGain = this.context.createGain();
+          this.musicGain = this.context.createGain();
+          this.effectsGain.connect(this.masterGain);
+          this.musicGain.connect(this.masterGain);
+          this.masterGain.connect(this.context.destination);
+        }
+        this.context.resume().then(() => this.applySettings()).catch(() => {});
       } catch { /* Áudio opcional: o jogo continua quando o navegador não oferece áudio. */ }
     };
     target.addEventListener('keydown', this.unlock);
     target.addEventListener('pointerdown', this.unlock);
   }
 
-  tone(frequency, duration, type = 'sine', offset = 0, level = 1) {
+  applySettings() {
+    if (this.disposed || !this.context) return;
+    const { masterVolume, musicVolume, effectsVolume } = this.settings.values;
+    for (const [node, value] of [[this.masterGain, masterVolume], [this.musicGain, musicVolume], [this.effectsGain, effectsVolume]]) {
+      node.gain.setValueAtTime(value, this.context.currentTime);
+    }
+    if (!musicVolume || !masterVolume || !this.enabled) this.stopMusic();
+    else if (!this.musicTimer && this.context.state === 'running') {
+      // Trilha instrumental opcional, sintetizada localmente; sem downloads ou autoplay.
+      const melody = [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 783.99, 698.46,
+        659.25, 783.99, 880, 783.99, 587.33, 659.25, 523.25, 0];
+      let index = 0;
+      const step = () => {
+        const note = melody[index++ % melody.length];
+        if (note && !this.target.document?.hidden) this.tone(note, .32, 'sine', 0, .22, 'music');
+      };
+      step();
+      this.musicTimer = setInterval(step, 420);
+      this.musicTimer.unref?.();
+    }
+  }
+
+  stopMusic() {
+    clearInterval(this.musicTimer); this.musicTimer = null;
+    for (const node of this.musicNotes) { try { node.stop(); } catch { /* Nota já encerrada. */ } }
+    this.musicNotes.clear();
+  }
+
+  tone(frequency, duration, type = 'sine', offset = 0, level = 1, channel = 'effects') {
     const context = this.context;
     if (!this.enabled || this.disposed || context?.state !== 'running') return false;
     const oscillator = context.createOscillator();
@@ -31,10 +72,11 @@ export class SoundSystem {
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(this.volume * level, time + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-    oscillator.connect(gain); gain.connect(context.destination);
+    oscillator.connect(gain); gain.connect(channel === 'music' ? this.musicGain : this.effectsGain);
     this.nodes.add(oscillator); this.nodes.add(gain);
+    if (channel === 'music') this.musicNotes.add(oscillator);
     oscillator.onended = () => {
-      oscillator.disconnect(); gain.disconnect(); this.nodes.delete(oscillator); this.nodes.delete(gain);
+      oscillator.disconnect(); gain.disconnect(); this.nodes.delete(oscillator); this.nodes.delete(gain); this.musicNotes.delete(oscillator);
     };
     oscillator.start(time); oscillator.stop(time + duration + 0.01);
     return true;
@@ -59,7 +101,7 @@ export class SoundSystem {
     const source = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
     source.buffer = this.sprayBuffer; source.loop = true; filter.type = 'lowpass'; filter.frequency.value = 1700;
     gain.gain.value = this.volume * .22;
-    source.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    source.connect(filter); filter.connect(gain); gain.connect(this.effectsGain);
     for (const node of [source, filter, gain]) this.nodes.add(node);
     this.spraySource = source;
     source.onended = () => {
@@ -85,11 +127,14 @@ export class SoundSystem {
   dispose() {
     if (this.disposed) return;
     this.stopExtinguisher();
+    this.stopMusic();
     this.disposed = true;
+    this.unsubscribeSettings();
     this.target.removeEventListener('keydown', this.unlock);
     this.target.removeEventListener('pointerdown', this.unlock);
     this.nodes.forEach((node) => { try { node.stop?.(); } catch {} node.disconnect(); });
     this.nodes.clear();
+    this.masterGain?.disconnect(); this.effectsGain?.disconnect(); this.musicGain?.disconnect();
     this.context?.close().catch(() => {});
   }
 }

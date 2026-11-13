@@ -4,11 +4,13 @@ Adicione seus PNGs originais nesta pasta, sem alterar os nomes abaixo:
 
 | Arquivo | Onde aparece |
 | --- | --- |
-| `logo-menu.png` | Acima do título do menu inicial, substituindo os emojis decorativos. |
-| `fundo-perguntas.png` | No topo da janela de perguntas, acima dos textos e alternativas. |
+| `logo-menu.png` | No lugar do título HELLO KITTY SUSHI no menu inicial, mantendo os emojis e o restante do menu. |
+| `fundo-perguntas.png` | Caminho antigo reservado na configuração. A logo das perguntas agora usa a pasta própria abaixo. |
 | `logo-carregamento.png` | Reservado para a tela de carregamento. O jogo ainda não possui essa tela. |
 
 As imagens são centralizadas, proporcionais e exibidas inteiras, sem recortes.
+Para o pop-up educativo, adicione `logo-perguntas.png` em `public/assets/logos-perguntas/`;
+consulte o [README dessa pasta](../logos-perguntas/README.md).
 Se estiverem ausentes ou inválidas, o visual padrão continua funcionando, sem ícone de imagem quebrada.
 Recarregue a página após adicionar arquivos. Em produção, execute `npm run build` novamente.
 
