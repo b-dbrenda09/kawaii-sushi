@@ -5,7 +5,7 @@ import { Camera } from '../src/game/Camera.js';
 
 const world = new Scene();
 assert.equal(world.cube, undefined);
-assert.equal(world.dimensions.width, 18);
+assert.equal(world.dimensions.width, 21.6);
 assert.equal(world.dimensions.depth, 18);
 for (const name of ['floor-foundation', 'back-wall', 'left-wall', 'right-low-wall']) {
   assert.ok(world.scene.getObjectByName(name), `${name} deve existir`);

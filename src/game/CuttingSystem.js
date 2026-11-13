@@ -122,6 +122,8 @@ export class CuttingSystem {
   }
 
   interact(carrySystem = this.carrySystem) {
+    if (this.station.fireState === 'burning') return this.result(false, 'burning', 'Estação em chamas!');
+    if (carrySystem.carriedTool) return this.result(false, 'unavailable', 'Libere as mãos para preparar ingredientes.');
     if (this.station.interactingPlayer && this.station.interactingPlayer !== carrySystem.player) return this.result(false, 'unavailable', 'Bancada em uso.');
     this.carrySystem = carrySystem;
     this.player = carrySystem.player;
@@ -137,6 +139,7 @@ export class CuttingSystem {
 
   update(deltaTime) {
     if (this.disposed) return;
+    if (this.station.fireState === 'burning') return;
     deltaTime = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : 0;
     if (this.isCutting) {
       this.strokeElapsed = Math.min(this.strokeDuration, this.strokeElapsed + deltaTime);
@@ -152,7 +155,10 @@ export class CuttingSystem {
           this.factory.setCutState(this.content, PREPARED[this.content.state]);
           this.transition('READY');
           this.sound?.playComplete();
-        } else this.transition('LOADED');
+        } else {
+          this.factory.setCutProgress(this.content, this.cuts, this.requiredCuts);
+          this.transition('LOADED');
+        }
         this.player.endCutting();
         this.station.interactingPlayer = null;
         this.strokeElapsed = 0;

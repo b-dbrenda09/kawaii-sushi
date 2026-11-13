@@ -18,9 +18,9 @@ export class AssemblyUI {
     container.appendChild(this.element);
   }
 
-  update(system, selected) {
-    this.element.hidden = !selected;
-    if (!selected) return;
+  update(system, selected, carrySystem = system.carrySystem) {
+    this.element.hidden = !selected || system.station.fireState === 'burning';
+    if (this.element.hidden) return;
     const { possible, next } = system.analysis;
     const ready = system.state === 'READY';
     const sequence = system.sequence;
@@ -29,9 +29,9 @@ export class AssemblyUI {
     this.sequence.textContent = ready ? '✓ Montagem completa' : sequence.length
       ? `Montagem: ${sequence.map((state) => PREPARED_NAMES[state]).join(' + ')}` : 'Prato livre';
     const lengths = [...new Set(possible.map((recipe) => recipe.sequence.length))].sort();
-    this.next.textContent = ready ? 'Libere as mãos e pressione E para pegar.'
+    this.next.textContent = ready ? 'Libere as mãos para retirar o sushi.'
       : `Próximo: ${next.map((state) => PREPARED_NAMES[state]).join(' ou ')} • ${sequence.length}/${lengths.join('–')} etapas`;
-    this.cancel.hidden = system.state !== 'ASSEMBLING' || Boolean(system.carrySystem.carriedIngredient);
+    this.cancel.hidden = system.state !== 'ASSEMBLING' || Boolean(carrySystem.carriedIngredient);
     this.progress.value = system.cancelProgress;
   }
 

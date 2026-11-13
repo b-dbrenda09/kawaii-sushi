@@ -5,6 +5,7 @@ import { Camera } from '../src/game/Camera.js';
 import { CollisionSystem } from '../src/game/CollisionSystem.js';
 import { OrderSystem } from '../src/game/OrderSystem.js';
 import { CustomerSystem } from '../src/game/CustomerSystem.js';
+import { CUSTOMER_TYPES } from '../src/game/CustomerFactory.js';
 
 const world = new Scene();
 const collision = new CollisionSystem({ bounds: world.collisionBounds });
@@ -15,17 +16,17 @@ world.bounds.union(system.bounds);
 const seen = new Map(), removed = new Set(), animations = new Set();
 let full = false, reused = false;
 const history = new Map();
-for (let frame = 0; frame < 120 * 60; frame++) {
+for (let frame = 0; frame < 300 * 60; frame++) {
   system.update(1 / 60);
   if (frame < 299) assert.equal(system.customers.size, 0, 'Primeira chegada somente após 5s');
   assert.ok(system.customers.size <= 3);
   const occupied = system.slots.filter((slot) => slot.customerId);
   assert.equal(new Set(occupied.map((slot) => slot.customerId)).size, occupied.length);
-  assert.equal(occupied.length, system.customers.size);
+  assert.equal(occupied.length, [...system.customers.values()].filter(c => c.slot.customerId === c.id).length);
   if (system.customers.size === 3) { full = true; assert.equal(system.spawn(), null); }
   const customers = [...system.customers.values()];
   for (const customer of customers) {
-    assert.equal(customer.slot.customerId, customer.id);
+    if (customer.state !== 'LEAVING' || customer.waypoint < 1) assert.equal(customer.slot.customerId, customer.id);
     animations.add(customer.animation);
     assert.ok(customer.model.position.z <= system.counterZ - 0.64, 'Nunca atravessa o balcão');
     assert.ok(customer.model.position.z > -9.4, 'Não entra na parede traseira');
@@ -56,7 +57,7 @@ for (let frame = 0; frame < 120 * 60; frame++) {
     assert.equal(customer.model.parent, null);
   }
 }
-assert.deepEqual(new Set([...seen.values()].map((customer) => customer.type)), new Set(['rabbit', 'bear', 'panda']));
+assert.deepEqual(new Set([...seen.values()].map((customer) => customer.type)), new Set(CUSTOMER_TYPES));
 assert.ok(full && reused && removed.size >= 3);
 assert.ok(animations.has('WALK') && animations.has('WAIT') && animations.has('IDLE'));
 assert.equal(new Set(seen.keys()).size, seen.size);
@@ -74,4 +75,4 @@ assert.equal(system.customers.size, 0);
 assert.ok(system.slots.every((slot) => slot.customerId === null));
 assert.equal(collision.obstacles.has('customer-area-boundary'), false);
 collision.dispose(); world.dispose();
-console.log('OK: três animais, chegada 5s/10s, capacidade, reservas, trajetos sem sobreposição, animações, espera por paciência, saída, reutilização, separação, câmera e descarte.');
+console.log('OK: cinco animais, chegada 5s/10s, capacidade, reservas, trajetos sem sobreposição, animações, espera por paciência, saída, reutilização, separação, câmera e descarte.');

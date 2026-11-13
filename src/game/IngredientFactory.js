@@ -141,6 +141,33 @@ export class IngredientFactory {
     this.applyState(ingredient, state, ingredient.type === 'salmon' ? 'Salmão cortado' : 'Pepino cortado');
   }
 
+  // Rebuild only after a completed valid stroke; logical state remains raw until the last cut.
+  setCutProgress(ingredient, cuts, requiredCuts) {
+    if (!this.instances.has(ingredient) || ingredient.disposed || !Number.isInteger(cuts)
+      || cuts <= 0 || cuts >= requiredCuts || !['salmon_raw', 'cucumber_whole'].includes(ingredient.state)) return;
+    const root = new Group(), count = requiredCuts + 1, width = .76 / count;
+    for (let i = 0; i <= cuts; i++) {
+      const remaining = i === cuts ? count - cuts : 1;
+      const length = width * remaining - .012;
+      const x = -.38 + width * (i + remaining / 2);
+      if (ingredient.type === 'salmon') {
+        this.box(root, `partial-salmon-${i}`, [length, .2, .42], [x, .1, 0], 'salmon');
+        this.box(root, `partial-salmon-stripe-${i}`, [.012, .006, .34], [x, .203, 0], 'cream');
+      } else {
+        const piece = this.mesh(root, `partial-cucumber-${i}`, this.cylinder, 'skin', [x, .09, 0], [.09, length, .09]);
+        piece.rotation.z = Math.PI / 2;
+        for (const side of [-1, 1]) {
+          const face = this.mesh(root, `partial-cucumber-center-${i}`, this.cylinder, 'cucumberCenter',
+            [x + side * length / 2, .09, 0], [.07, .003, .07]);
+          face.rotation.z = Math.PI / 2;
+        }
+      }
+    }
+    ingredient.model.clear();
+    ingredient.model.add(...root.children);
+    ingredient.model.userData.completedCuts = cuts;
+  }
+
   applyState(ingredient, state, name) {
     const nextModel = this.buildModel(ingredient.type, state);
     const size = new Box3().setFromObject(nextModel).getSize(new Vector3());
@@ -149,6 +176,7 @@ export class IngredientFactory {
     ingredient.state = state;
     ingredient.name = name;
     ingredient.model.userData.ingredientState = state;
+    delete ingredient.model.userData.completedCuts;
     ingredient.dimensions = Object.freeze({ width: size.x, height: size.y, depth: size.z });
   }
 

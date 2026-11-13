@@ -1,16 +1,18 @@
 {
-  "name": "kawaii-sushi",
+  "name": "hello-kitty-sushi",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "test": "node scripts/verify-scene.mjs && node scripts/verify-player.mjs && node scripts/verify-movement.mjs && node scripts/verify-dash.mjs && node scripts/verify-collisions.mjs && node scripts/verify-kitchen.mjs && node scripts/verify-interactions.mjs && node scripts/verify-carry.mjs && node scripts/verify-rice-cooker.mjs && node scripts/verify-cutting.mjs && node scripts/verify-assembly.mjs && node scripts/verify-customers.mjs && node scripts/verify-orders.mjs && node scripts/verify-update.mjs && node scripts/verify-game-loop.mjs && node scripts/verify-delivery.mjs && node scripts/verify-uramaki.mjs && node scripts/verify-controls.mjs && node scripts/verify-match.mjs",
+    "test": "node scripts/verify-scene.mjs && node scripts/verify-player.mjs && node scripts/verify-movement.mjs && node scripts/verify-dash.mjs && node scripts/verify-collisions.mjs && node scripts/verify-kitchen.mjs && node scripts/verify-interactions.mjs && node scripts/verify-carry.mjs && node scripts/verify-rice-cooker.mjs && node scripts/verify-cutting.mjs && node scripts/verify-assembly.mjs && node scripts/verify-customers.mjs && node scripts/verify-orders.mjs && node scripts/verify-update.mjs && node scripts/verify-game-loop.mjs && node scripts/verify-delivery.mjs && node scripts/verify-uramaki.mjs && node scripts/verify-controls.mjs && node scripts/verify-gps.mjs && node scripts/verify-match.mjs && node scripts/verify-modes.mjs && node scripts/verify-assembly-surface.mjs && node scripts/verify-preparation-animation.mjs && node scripts/verify-service.mjs && node scripts/verify-camera.mjs && node scripts/verify-wide-kitchen.mjs && node scripts/verify-entrance.mjs && node scripts/verify-fire.mjs && node scripts/verify-questions.mjs",
     "test:customers": "node scripts/verify-customers.mjs && node scripts/verify-orders.mjs && node scripts/verify-update.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test:match": "node scripts/verify-match.mjs",
-    "test:match:browser": "node scripts/verify-match-browser.mjs"
+    "test:match:browser": "node scripts/verify-match-browser.mjs",
+    "test:modes": "node scripts/verify-modes.mjs",
+    "test:modes:browser": "node scripts/verify-modes-browser.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

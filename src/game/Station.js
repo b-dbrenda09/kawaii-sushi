@@ -7,6 +7,7 @@ export class Station {
     this.type = type;
     this.benchId = benchId;
     this.interactingPlayer = null;
+    this.fireState = 'normal';
     this.model = new Group();
     this.model.name = `station-${id}`;
     this.model.userData.stationId = id;
@@ -23,6 +24,7 @@ export class Station {
     const halfDepth = this.dimensions.depth / 2;
     this.collider = {
       id,
+      top: height,
       position: { x: this.position.x, z: this.position.z },
       width: this.dimensions.width,
       depth: this.dimensions.depth,
@@ -46,5 +48,5 @@ export class Station {
     return this.position.clone().addScaledVector(this.front, this.localDimensions.depth / 2 + radius + clearance);
   }
 
-  get state() { return this.behavior?.state ?? (this.storedIngredient ? 'OCCUPIED' : 'EMPTY'); }
+  get state() { return this.fireState === 'burning' ? 'burning' : this.behavior?.state ?? (this.storedIngredient ? 'OCCUPIED' : 'EMPTY'); }
 }

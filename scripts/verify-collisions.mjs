@@ -69,7 +69,7 @@ const kitchen = makeSystem({ bounds: world.collisionBounds });
 // Estes casos exercitam a arquitetura isolada; o layout completo tem suíte própria.
 world.collisionObstacles.filter((obstacle) => !world.kitchen.stations.has(obstacle.id))
   .forEach((obstacle) => kitchen.registerObstacle(obstacle));
-assert.equal(world.dimensions.width, 18);
+assert.equal(world.dimensions.width, 21.6);
 assert.equal(world.dimensions.depth, 18);
 for (const name of ['back-wall', 'left-wall', 'right-low-wall', 'front-boundary']) assert.ok(kitchen.obstacles.has(name));
 const directions = [

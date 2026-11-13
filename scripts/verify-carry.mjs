@@ -119,10 +119,11 @@ for (const surface of ['assembly', 'cutting']) {
     const b = station.collider.bounds;
     assert.ok(bounds.min.x >= b.minX - 1e-6 && bounds.max.x <= b.maxX + 1e-6);
     assert.ok(bounds.min.z >= b.minZ - 1e-6 && bounds.max.z <= b.maxZ + 1e-6);
-    for (const child of station.model.children) {
-      if (child === station.storage.anchor) continue;
+    station.model.traverse(child => {
+      // O tapete agrupa decoração e âncora; não comparar o item com seu próprio ancestral.
+      if (!child.isMesh || ingredient.model.getObjectById(child.id)) return;
       assert.equal(bounds.intersectsBox(new Box3().setFromObject(child)), false, `Objeto sobrepôs decoração em ${surface}.`);
-    }
+    });
     const restingPosition = ingredient.model.getWorldPosition(new Vector3());
     player.group.position.copy(world.kitchen.spawnPosition);
     for (let i = 0; i < 20; i++) player.update(1 / 60, new Vector3(1, 0, 0));

@@ -9,6 +9,7 @@ export class CollisionSystem {
     this.bounds = bounds ? this.validateBounds(bounds) : null;
     this.maxStep = maxStep;
     this.obstacles = new Map();
+    this.players = [];
     this.result = { blockedX: false, blockedZ: false };
     this.contactStep = new Vector3();
     this.debugGroup = null;
@@ -100,6 +101,17 @@ export class CollisionSystem {
       if (amount > 0 && start <= low + EPSILON && end > low) end = Math.max(start, low);
       if (amount < 0 && start >= high - EPSILON && end < high) end = Math.min(start, high);
     }
+    for (const player of this.players) {
+      const otherPosition = player.group.position;
+      if (otherPosition === position) continue;
+      const distance = Math.abs(position[other] - otherPosition[other]);
+      const combined = radius + player.collider.radius;
+      if (distance >= combined) continue;
+      const reach = Math.sqrt(combined * combined - distance * distance) + EPSILON;
+      const low = otherPosition[axis] - reach, high = otherPosition[axis] + reach;
+      if (amount > 0 && start <= low + EPSILON && end > low) end = Math.max(start, low);
+      if (amount < 0 && start >= high - EPSILON && end < high) end = Math.min(start, high);
+    }
     position[axis] = end;
     return end - start;
   }
@@ -136,6 +148,12 @@ export class CollisionSystem {
       if (inward < 0) { vector.x -= inward * nx; vector.z -= inward * nz; }
     };
     for (let pass = 0; pass < 3; pass++) {
+      for (const player of this.players) {
+        if (player.group.position === position) continue;
+        const dx = position.x - player.group.position.x, dz = position.z - player.group.position.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance > EPSILON && distance <= radius + player.collider.radius + margin) project(dx / distance, dz / distance);
+      }
       if (this.bounds) {
         if (position.x <= this.bounds.minX + radius + margin) project(1, 0);
         if (position.x >= this.bounds.maxX - radius - margin) project(-1, 0);

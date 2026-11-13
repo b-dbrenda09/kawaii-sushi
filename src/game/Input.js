@@ -1,14 +1,14 @@
 import { Vector3 } from 'three';
+import { MouseNavigation } from './MouseNavigation.js';
 import { MOVEMENT_MODES } from './ControlSettings.js';
 
-const MOVEMENT_KEYS = new Set([
-  'KeyW', 'KeyA', 'KeyS', 'KeyD',
-  'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight',
-]);
-const DASH_KEYS = new Set(['Space']);
+import { PLAYER_CONTROLS } from './PlayerControls.js';
 
 export class Input {
-  constructor(camera, { target = window, documentTarget = document, settings = null, player = null } = {}) {
+  constructor(camera, { target = window, documentTarget = document, settings = null, player = null, navigationCanvas = null, navigationObstacles = [], scene = null, controls = PLAYER_CONTROLS.solo } = {}) {
+    this.controls = controls;
+    const movementKeys = new Set([...controls.up, ...controls.down, ...controls.left, ...controls.right]);
+    this.hasDirection = action => controls[action].some(code => this.keys.has(code));
     this.camera = camera; this.settings = settings; this.player = player;
     this.forward = new Vector3(); this.right = new Vector3();
     this.target = target;
@@ -21,33 +21,54 @@ export class Input {
     this.enabled = false;
     this.disposed = false;
     this.direction = new Vector3();
+    if (navigationCanvas) {
+      this.mouseNavigation = new MouseNavigation(camera, navigationCanvas, player, scene, navigationObstacles);
+      this.onPointerMove = event => this.mouseNavigation.track(event);
+      this.onPointerOut = event => {
+        if (event.pointerType === 'mouse' && !event.relatedTarget) {
+          this.mouseNavigation.pointer = null;
+          this.mouseNavigation.clearRoute();
+        }
+      };
+      target.addEventListener('pointermove', this.onPointerMove);
+      target.addEventListener('pointerover', this.onPointerMove);
+      target.addEventListener('pointerout', this.onPointerOut);
+    }
 
     this.onKeyDown = (event) => {
-      if (!this.enabled || !(MOVEMENT_KEYS.has(event.code) || DASH_KEYS.has(event.code) || ['KeyE', 'KeyR'].includes(event.code))) return;
-      if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+      if (!this.enabled || !(movementKeys.has(event.code) || [controls.dash, controls.interact, controls.cancel, controls.drop].includes(event.code))) return;
+      if ((event.ctrlKey && controls === PLAYER_CONTROLS.solo) || event.metaKey || event.altKey || event.isComposing) return;
       if (event.target?.isContentEditable || event.target?.closest?.('input, textarea, select')) return;
       // As setas não devem rolar a página enquanto controlam o jogo.
       event.preventDefault();
+      if (event.code === controls.drop && this.player?.extinguishing && !event.repeat && !this.keys.has(event.code)) {
+        this.dropPressed = true; this.keys.add(event.code); return;
+      }
+      if (this.actionsBlocked && this.usesGPS && event.code === 'KeyW' && this.keys.has('KeyW')) return;
       if (this.actionsBlocked || this.suppressedKeys.has(event.code)) {
         this.suppressedKeys.add(event.code);
         return;
       }
       // Após pausar, uma tecla ainda segurada precisa ser solta antes de voltar a agir.
       if (event.repeat && !this.keys.has(event.code)) return;
-      if (DASH_KEYS.has(event.code) && !event.repeat && !this.keys.has(event.code)) {
+      if (event.code === controls.dash && !event.repeat && !this.keys.has(event.code)) {
         this.dashPressed = this.getDirection().lengthSq() > 0;
       }
-      if (event.code === 'KeyE' && !event.repeat && !this.keys.has(event.code)) this.interactionPressed = true;
+      if (event.code === controls.interact && !event.repeat && !this.keys.has(event.code)) this.interactionPressed = true;
+      if (event.code === controls.drop && !event.repeat && !this.keys.has(event.code)) this.dropPressed = true;
       this.keys.add(event.code);
     };
     this.onKeyUp = (event) => {
       if (this.enabled && this.keys.has(event.code)) event.preventDefault();
+      if (event.code === 'KeyW' && this.usesGPS && this.keys.has('KeyW')) this.stopNavigation();
       this.keys.delete(event.code);
       this.suppressedKeys.delete(event.code);
     };
     this.onBlur = event => {
       // Só uma perda real de foco da janela limpa teclas; eventos de elementos da UI não o fazem.
-      if (event.target === this.target) this.reset();
+      if (event.target !== this.target) return;
+      if (this.mouseNavigation) this.mouseNavigation.pointer = null;
+      this.reset();
     };
     this.onVisibility = () => this.reset();
     target.addEventListener('keydown', this.onKeyDown);
@@ -61,19 +82,34 @@ export class Input {
     this.reset();
   }
 
+  get usesGPS() {
+    return Boolean(this.mouseNavigation && this.settings?.movementMode === MOVEMENT_MODES.GPS);
+  }
+
+  stopNavigation() {
+    this.mouseNavigation?.clearRoute();
+    this.player?.stopMoving();
+    this.dashPressed = false;
+  }
+
   getDirection() {
     this.direction.set(0, 0, 0);
     if (!this.enabled || this.actionsBlocked) return this.direction;
+    if (this.usesGPS) {
+      if (this.keys.has('KeyW')) return this.mouseNavigation.steer(this.direction);
+      return this.direction;
+    }
 
-    const horizontal = Number(this.keys.has('KeyD') || this.keys.has('ArrowRight'))
-      - Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
-    const vertical = Number(this.keys.has('KeyW') || this.keys.has('ArrowUp'))
-      - Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
+    const horizontal = Number(this.hasDirection('right'))
+      - Number(this.hasDirection('left'));
+    const vertical = Number(this.hasDirection('up'))
+      - Number(this.hasDirection('down'));
 
     // Eixos fixos da cozinha: fundo -Z, frente +Z, esquerda -X, direita +X.
     const mode = this.settings?.movementMode ?? MOVEMENT_MODES.MAP;
     if (mode === MOVEMENT_MODES.CAMERA && this.camera) {
-      this.camera.getWorldDirection(this.forward); this.forward.y = 0;
+      this.camera.getWorldDirection(this.forward);
+      this.forward.y = 0;
       if (this.forward.lengthSq() < 1e-8) this.forward.set(0, 0, -1);
       this.forward.normalize(); this.right.set(-this.forward.z, 0, this.forward.x);
       this.direction.copy(this.forward).multiplyScalar(vertical).addScaledVector(this.right, horizontal);
@@ -89,16 +125,19 @@ export class Input {
 
   getTurn() {
     if (!this.enabled || this.actionsBlocked || this.settings?.movementMode !== MOVEMENT_MODES.CHARACTER) return 0;
-    return Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'))
-      - Number(this.keys.has('KeyD') || this.keys.has('ArrowRight'));
+    return Number(this.hasDirection('left'))
+      - Number(this.hasDirection('right'));
   }
 
   reset() {
+    if (this.usesGPS && this.keys.has('KeyW')) this.stopNavigation();
+    else this.mouseNavigation?.clearRoute();
     this.actionsBlocked = false;
     this.suppressedKeys.clear();
     this.dashPressed = false;
     this.interactionPressed = false;
     this.keys.clear();
+    this.dropPressed = false;
     this.direction.set(0, 0, 0);
   }
 
@@ -106,8 +145,13 @@ export class Input {
     if (this.actionsBlocked === blocked) return;
     this.actionsBlocked = blocked;
     if (!blocked) return;
-    for (const code of this.keys) this.suppressedKeys.add(code);
-    this.keys.clear();
+    if (this.usesGPS) this.stopNavigation();
+    for (const code of this.keys) {
+      if (this.usesGPS && code === 'KeyW') continue;
+      if (this.player?.extinguishing && code === this.controls.interact) continue;
+      this.suppressedKeys.add(code);
+      this.keys.delete(code);
+    }
     this.direction.set(0, 0, 0);
     this.dashPressed = false;
     this.interactionPressed = false;
@@ -120,7 +164,11 @@ export class Input {
   }
 
   isCancelHeld() {
-    return this.enabled && !this.actionsBlocked && this.keys.has('KeyR');
+    return this.enabled && !this.actionsBlocked && this.keys.has(this.controls.cancel);
+  }
+
+  isInteractionHeld() {
+    return this.enabled && (!this.actionsBlocked || this.player?.extinguishing) && this.keys.has(this.controls.interact);
   }
 
   consumeInteraction() {
@@ -129,10 +177,18 @@ export class Input {
     return pressed;
   }
 
+  consumeDrop() { const pressed = Boolean(this.dropPressed); this.dropPressed = false; return pressed; }
+
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
     this.setEnabled(false);
+    if (this.mouseNavigation) {
+      this.target.removeEventListener('pointermove', this.onPointerMove);
+      this.target.removeEventListener('pointerover', this.onPointerMove);
+      this.target.removeEventListener('pointerout', this.onPointerOut);
+      this.mouseNavigation.dispose();
+    }
     this.target.removeEventListener('keydown', this.onKeyDown);
     this.target.removeEventListener('keyup', this.onKeyUp);
     this.target.removeEventListener('blur', this.onBlur);

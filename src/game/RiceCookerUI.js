@@ -32,7 +32,7 @@ export class RiceCookerUI {
     const { state } = cooker;
     this.point.set(-0.15, 4.25, 0);
     this.station.model.localToWorld(this.point).project(camera);
-    this.root.hidden = state === 'EMPTY' || Math.abs(this.point.x) > 1 || Math.abs(this.point.y) > 1;
+    this.root.hidden = this.station.fireState === 'burning' || state === 'EMPTY' || Math.abs(this.point.x) > 1 || Math.abs(this.point.y) > 1;
     this.root.dataset.state = state;
     const x = (this.point.x + 1) * this.container.clientWidth / 2;
     const y = (1 - this.point.y) * this.container.clientHeight / 2;

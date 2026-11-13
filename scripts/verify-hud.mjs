@@ -88,6 +88,8 @@ try {
   })();` });
   await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   await command('Page.navigate', { url });
+  await waitFor('Boolean(document.querySelector("[data-mode=solo]"))', 'Menu de modo ausente.');
+  await evaluate('document.querySelector("[data-mode=solo]").click()');
   let ready = false;
   for (let i = 0; i < 60; i++) {
     if (await evaluate('Boolean(document.querySelector("canvas"))')) { ready = true; break; }
@@ -132,7 +134,7 @@ try {
       ingredients:e.querySelector('.order-ingredients').textContent,animal:e.querySelector('.order-animal').textContent,icon:e.querySelector('.order-sushi').dataset.model,
       time:e.querySelector('.order-time').textContent,barHeight:e.querySelector('.order-patience').getBoundingClientRect().height,
       pointer:getComputedStyle(e).pointerEvents}))};})()`);
-  assert.equal(cards.position,'fixed');assert.equal(cards.top,12);assert.equal(cards.right,12);assert.equal(cards.gap,'6px');assert.equal(cards.pointer,'none');assert.ok(cards.focus);
+  assert.equal(cards.position,'static');assert.ok(cards.top>12);assert.equal(cards.right,12);assert.equal(cards.gap,'6px');assert.equal(cards.pointer,'none');assert.ok(cards.focus);
   cards.cards.forEach((card,i)=>{assert.equal(card.rect.width,220);assert.ok(card.rect.height<120);assert.ok(card.name&&card.ingredients&&card.animal&&card.icon&&card.time);assert.equal(card.barHeight,4);assert.equal(card.pointer,'none');
     if(i)assert.ok(Math.abs(card.rect.top-cards.cards[i-1].rect.bottom-6)<.1);});
   const independence=await evaluate(`(()=>{const g=__kawaiiTestGame,orders=g.orderSystem.getActiveOrders(),before=orders.map(o=>o.remainingTime);
@@ -141,7 +143,7 @@ try {
   // O CSSOM serializa transformações com precisão menor que os números do modelo.
   assert.ok(independence.every(o=>Math.abs(o.difference-1.25)<1e-8&&Math.abs(o.scale-o.ratio)<1e-6),JSON.stringify(independence));
   assert.equal(new Set(independence.map(o=>o.ratio)).size,3,'Paciências independentes.');
-  for(const [ratio,level,color] of [[1,'calm','rgb(148, 203, 162)'],[.6001,'calm','rgb(148, 203, 162)'],[.6,'concerned','rgb(234, 197, 108)'],[.3,'concerned','rgb(234, 197, 108)'],[.299,'impatient','rgb(217, 107, 114)']]){
+  for(const [ratio,level,color] of [[1,'calm','rgb(148, 203, 162)'],[.6001,'calm','rgb(148, 203, 162)'],[.6,'concerned','rgb(234, 197, 108)'],[.3,'concerned','rgb(234, 197, 108)'],[.299,'impatient','rgb(207, 104, 121)']]){
     const percent=await evaluate(`(()=>{const g=__kawaiiTestGame,o=g.orderSystem.getActiveOrders()[0];o.remainingTime=o.maxPatience*${ratio};g.orderUI.update(g.orderSystem,g.customerSystem.customers);
       const e=g.orderUI.entries.get(o.id);return {scale:e.fill.style.transform,level:e.bubble.dataset.level,value:e.track.getAttribute('aria-valuenow')};})()`);
     assert.ok(Math.abs(Number(percent.scale.slice(7,-1))-ratio)<1e-8);assert.equal(percent.level,level);assert.equal(Number(percent.value),Math.round(ratio*100));
@@ -181,7 +183,7 @@ try {
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await delay(350);
     const mobile=await evaluate(`(()=>{const g=__kawaiiTestGame;g.orderUI.root.hidden=true;const before=__hudLayout();g.orderUI.update(g.orderSystem,g.customerSystem.customers);
       const after=__hudLayout();return {same:JSON.stringify(before)===JSON.stringify(after),rect:g.orderUI.root.getBoundingClientRect().toJSON(),viewport:[innerWidth,innerHeight]};})()`);
-    assert.ok(mobile.same);assert.equal(mobile.rect.top,12);assert.equal(width-mobile.rect.right,12);assert.equal(mobile.rect.width,220);assert.ok(mobile.rect.bottom<=height);
+    assert.ok(mobile.same);assert.ok(mobile.rect.top>12);assert.equal(width-mobile.rect.right,12);assert.equal(mobile.rect.width,220);assert.ok(mobile.rect.bottom<=height);
   }
   assert.deepEqual(errors,[],JSON.stringify(errors));await evaluate('__kawaiiTestGame.dispose()');
   console.log('OK: HUD fixo 220px/12px/6px, cartões compactos, canvas/câmera/mapa idênticos com 0/1/2/3 pedidos, paciência 100%→0% limitada e independente, cores, atualização sem reinício, pausa/retomada, movimento e console limpo.');

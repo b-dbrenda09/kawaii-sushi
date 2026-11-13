@@ -1,8 +1,10 @@
 ﻿import { RECIPES } from './RecipeSystem.js';
 import { ORDER_STATES, patienceLevel } from './OrderSystem.js';
 import { recipeIngredients, createRecipeIllustration } from './RecipePresentation.js';
+import { ORDER_TYPES, orderBonuses } from './ServiceConfig.js';
+import { BALANCE } from './Balance.js';
 
-const ANIMAL_NAMES = { rabbit: 'Coelhinho', bear: 'Ursinho', panda: 'Panda' };
+const ANIMAL_NAMES = { rabbit: 'Coelhinho', bear: 'Ursinho', panda: 'Panda', cat: 'Gatinho', dog: 'Cachorrinho' };
 
 export class OrderUI {
   constructor(container) {
@@ -14,7 +16,7 @@ export class OrderUI {
 
   create(order, customer) {
     for (const node of this.retiring) {
-      if (this.root.children.length < 3) break;
+      if (this.root.children.length < 4) break;
       node.remove(); this.retiring.delete(node);
     }
     const document = this.container.ownerDocument;
@@ -27,6 +29,13 @@ export class OrderUI {
     portrait.setAttribute('role', 'img'); portrait.setAttribute('aria-label', ANIMAL_NAMES[customer.type]);
     for (const part of ['ear left', 'ear right', 'face', 'eye left', 'eye right', 'nose']) portrait.appendChild(element('span', part));
     const animal = element('div', 'order-animal'); animal.textContent = ANIMAL_NAMES[customer.type];
+    animal.title = `${ANIMAL_NAMES[customer.type]} · ${order.profileLabel ?? 'Comum'}`;
+    const details = element('div', 'order-details');
+    const type = element('span', 'order-type'); type.textContent = ORDER_TYPES[order.type ?? 'normal'].label;
+    const bonus = element('span', 'order-bonus');
+    details.append(type, bonus);
+    const profile = element('div', 'order-profile'); profile.textContent = order.profileLabel ?? 'Comum';
+    bubble.dataset.type = order.type ?? 'normal';
     const recipe = RECIPES.find(recipe => recipe.id === order.recipeId);
     const icon = createRecipeIllustration(document, recipe);
     const name = element('div', 'order-name'); name.textContent = order.recipeName;
@@ -35,13 +44,14 @@ export class OrderUI {
     track.setAttribute('aria-label', `Paciência: ${order.recipeName}`); track.setAttribute('aria-valuemin', '0'); track.setAttribute('aria-valuemax', '100');
     const fill = element('div', 'order-patience-fill'); track.appendChild(fill);
     const time = element('div', 'order-time');
-    bubble.append(badge, portrait, animal, icon, name, tutorial, track, time); this.root.appendChild(bubble);
-    const entry = { bubble, badge, track, fill, time, initialRemaining: order.remainingTime };
+    bubble.append(badge, portrait, animal, profile, icon, name, tutorial, details, track, time); this.root.appendChild(bubble);
+    const entry = { bubble, badge, track, fill, time, bonus, initialRemaining: order.remainingTime };
     this.entries.set(order.id, entry); return entry;
   }
 
   update(orderSystem, customers) {
-    const active = orderSystem.getActiveOrders().filter(order => customers.has(order.customerId)).slice(0, 3);
+    const active = orderSystem.getActiveOrders().filter(order => customers.has(order.customerId)).slice(0, 4);
+    this.root.dataset.count = String(active.length);
     const ids = new Set(active.map(order => order.id));
     for (const [id, entry] of this.entries) if (!ids.has(id)) {
       const order = orderSystem.getOrder(id);
@@ -66,13 +76,23 @@ export class OrderUI {
     const percent = Number.isFinite(rawPercent) ? Math.min(100, Math.max(0, rawPercent)) : 0;
     const ratio = percent / 100;
     // A interface somente lê o pedido. O relógio continua pertencendo ao OrderSystem.
-    entry.badge.hidden = order.state !== ORDER_STATES.PENDING || entry.initialRemaining - order.remainingTime >= 3;
+    const urgent = patienceLevel(ratio) === 'impatient';
+    const badge = order.state === ORDER_STATES.EXPIRED ? 'Pedido expirado'
+      : order.type === 'urgent' ? 'Urgente' : urgent ? 'Pouco tempo' : 'Novo pedido!';
+    if (entry.badge.textContent !== badge) entry.badge.textContent = badge;
+    entry.badge.hidden = order.state === ORDER_STATES.COMPLETED
+      || (order.state === ORDER_STATES.PENDING && order.type !== 'urgent' && !urgent && entry.initialRemaining - order.remainingTime >= 3);
     entry.bubble.dataset.level = patienceLevel(ratio);
     entry.fill.style.transform = `scaleX(${ratio})`;
     const value = String(Math.round(percent));
     if (entry.track.getAttribute('aria-valuenow') !== value) entry.track.setAttribute('aria-valuenow', value);
     const time = `${Math.ceil(Math.max(0, order.remainingTime))}s restantes`;
     if (entry.time.textContent !== time) entry.time.textContent = time;
+    if (entry.bonus) {
+      const available = order.state === ORDER_STATES.PENDING ? Math.round(BALANCE.score.maxBonus * ratio) + orderBonuses(order).total : 0;
+      const text = `Bônus +${available}`;
+      if (entry.bonus.textContent !== text) entry.bonus.textContent = text;
+    }
   }
 
   dispose() { this.entries.clear(); this.retiring.clear(); this.root.remove(); }

@@ -13,6 +13,7 @@ export class PreparationSystem {
     this.riceCookers = new Map(); this.cuttingSystems = new Map(); this.assemblySystems = new Map();
     this.riceUIs = new Map(); this.cuttingUIs = new Map();
     this.carrySystem = carrySystem;
+    this.sound = sound;
     for (const station of stations.values()) {
       if (station.type === 'riceCooker') {
         this.riceCookers.set(station.id, new RiceCookerSystem({ station, carrySystem, factory, effects: new RiceCookerEffects(station) }));
@@ -30,17 +31,21 @@ export class PreparationSystem {
 
   get isCutting() { return [...this.cuttingSystems.values()].some(system => system.isCutting && system.player === this.carrySystem.player); }
   updatePreparation(dt) {
-    for (const system of this.riceCookers.values()) system.update(dt);
+    for (const system of this.riceCookers.values()) {
+      const previous = system.state;
+      system.update(dt);
+      if (previous !== 'READY' && system.state === 'READY') this.sound?.playRiceReady?.();
+    }
     for (const system of this.cuttingSystems.values()) system.update(dt);
   }
   updateAssembly(dt, { selectedStation = null, cancelHeld = false, disabled = false } = {}) {
     for (const system of this.assemblySystems.values()) system.update(dt, { selected: selectedStation === system.station, cancelHeld, disabled });
   }
-  updateUI(camera, selectedStation) {
+  updateUI(camera, selectedStation, carrySystem) {
     for (const [id, ui] of this.riceUIs) ui.update(this.riceCookers.get(id), camera);
     for (const [id, ui] of this.cuttingUIs) ui.update(this.cuttingSystems.get(id), camera);
     const selected = this.assemblySystems.get(selectedStation?.id);
-    this.assemblyUI?.update(selected ?? this.assemblySystems.values().next().value, Boolean(selected));
+    this.assemblyUI?.update(selected ?? this.assemblySystems.values().next().value, Boolean(selected), carrySystem);
   }
   cancelCuts() { for (const system of this.cuttingSystems.values()) system.cancelStroke(); }
   resetCancellation() { for (const system of this.assemblySystems.values()) system.resetCancellation(); }

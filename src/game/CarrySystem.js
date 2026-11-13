@@ -6,11 +6,14 @@ export class CarrySystem {
     this.stations = stations;
     this.factory = factory;
     this.carriedIngredient = null;
+    this.carriedTool = null;
     this.disposed = false;
   }
 
   describe(station) {
-    if (station.behavior) return station.behavior.describe(this);
+    if (station.fireSystem?.isBurning(station)) return { action: this.carriedTool ? 'Segure a tecla para apagar o fogo' : 'Estação em chamas!', available: Boolean(this.carriedTool), showKey: Boolean(this.carriedTool) };
+    if (this.carriedTool && station.type !== 'extinguisher') return { action: `${this.player.id === 'p2' ? 'O' : 'Q'}: deixar extintor no chão`, available: false };
+    if (station.behavior) return station.behavior.describe(this, station);
     const carried = this.carriedIngredient;
     const source = station.ingredientSource;
     if (source) {
@@ -32,16 +35,18 @@ export class CarrySystem {
   }
 
   attach(ingredient) {
-    if (ingredient.disposed || (this.carriedIngredient && !this.carriedIngredient.disposed && this.carriedIngredient !== ingredient)) {
+    if (this.carriedTool || ingredient.disposed || (this.carriedIngredient && !this.carriedIngredient.disposed && this.carriedIngredient !== ingredient)) {
       throw new Error('Não é possível carregar dois ingredientes ou recuperar um objeto removido.');
     }
     ingredient.model.removeFromParent();
     ingredient.model.position.set(0, 0, 0);
     ingredient.model.rotation.set(0, 0, 0);
     ingredient.model.visible = true;
+    this.player.carryAnchor.position.z = Math.max(0.67, 0.44 + ingredient.dimensions.depth / (2 * this.player.modelScale));
     this.player.carryAnchor.add(ingredient.model);
+    this.player.gesture?.(0.26);
     ingredient.location = 'carried';
-    ingredient.ownerId = 'player';
+    ingredient.ownerId = this.player.id ?? 'player';
     this.carriedIngredient = ingredient;
   }
 
@@ -57,6 +62,7 @@ export class CarrySystem {
     ingredient.model.position.set(...position);
     ingredient.model.rotation.set(0, 0, 0);
     anchor.add(ingredient.model);
+    this.player.gesture?.(0.65);
     ingredient.location = location;
     ingredient.ownerId = ownerId;
     this.carriedIngredient = null;
@@ -64,6 +70,7 @@ export class CarrySystem {
   }
 
   takeFromBox(station) {
+    if (this.carriedTool) return this.result(false, 'unavailable', 'Mãos ocupadas com o extintor.');
     if (this.carriedIngredient?.kind === 'sushi') return this.result(false, 'unavailable', 'Apoie ou descarte o sushi antes de pegar ingredientes.');
     if (this.carriedIngredient?.originBoxId === station.id) return this.returnIngredient();
     // Cria primeiro: se a fábrica falhar, o ingrediente atual continua intacto.
@@ -93,7 +100,7 @@ export class CarrySystem {
   }
 
   retrieve(station) {
-    if (this.carriedIngredient) return this.result(false, 'unavailable', 'Suas mãos já estão ocupadas.');
+    if (this.carriedIngredient || this.carriedTool) return this.result(false, 'unavailable', 'Suas mãos já estão ocupadas.');
     if (!station.storage || !station.storedIngredient) return this.result(false, 'unavailable', 'A superfície está livre.');
     const ingredient = station.storedIngredient;
     station.storedIngredient = null;
@@ -101,7 +108,8 @@ export class CarrySystem {
     return this.result(true, 'retrieve', `Carregando: ${ingredient.name}.`);
   }
 
-  discard() {
+  discard({ force = false } = {}) {
+    if (this.carriedIngredient?.deliveryReservation && !force) return this.result(false, 'unavailable', 'Prato reservado para o desafio da entrega.');
     if (!this.carriedIngredient) return this.result(false, 'unavailable', 'Nada para descartar.');
     this.carriedIngredient.dispose();
     this.carriedIngredient = null;
@@ -109,9 +117,12 @@ export class CarrySystem {
   }
 
   interact(station) {
+    if (this.carriedIngredient?.deliveryReservation) return this.result(false, 'unavailable', 'Prato reservado para o desafio da entrega.');
+    if (station.fireSystem?.isBurning(station)) return this.result(false, 'burning', this.carriedTool ? 'Segure sua tecla de interação para apagar o fogo.' : 'Estação em chamas!');
+    if (this.carriedTool && station.type !== 'extinguisher') return this.result(false, 'unavailable', 'Deixe o extintor no chão ou no suporte.');
     if (this.disposed || this.stations.get(station.id) !== station || this.player.movementLocked || this.player.state === 'dashing'
       || this.player.dashRemaining > 0) return this.result(false, 'unavailable', 'Interação indisponível.');
-    if (station.behavior) return station.behavior.interact(this);
+    if (station.behavior) return station.behavior.interact(this, station);
     if (station.ingredientSource) return this.takeFromBox(station);
     if (station.id === 'trash') return this.discard();
     if (station.storage) return this.carriedIngredient ? this.place(station) : this.retrieve(station);
@@ -120,7 +131,8 @@ export class CarrySystem {
 
   dispose() {
     if (this.disposed) return;
-    this.discard();
+    if (this.carriedTool?.owner === this) this.carriedTool.dock();
+    this.discard({ force: true });
     for (const station of this.stations.values()) {
       station.storedIngredient?.dispose();
       station.storedIngredient = null;

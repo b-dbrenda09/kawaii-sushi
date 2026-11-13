@@ -5,6 +5,8 @@ export class CuttingEffects {
     this.station = station;
     this.disposed = false;
     this.flashRemaining = 0;
+    this.readyRemaining = 0;
+    this.wasReady = false;
     this.decorations = station.model.children.filter((mesh) => ['salmon-piece', 'salmon-stripe'].includes(mesh.name))
       .map((mesh) => ({ mesh, visible: mesh.visible }));
     this.decorations.forEach(({ mesh }) => { mesh.visible = false; });
@@ -39,6 +41,19 @@ export class CuttingEffects {
 
   update(deltaTime, cutting) {
     if (this.disposed) return;
+    const ready = cutting.state === 'READY';
+    if (ready && !this.wasReady) {
+      this.readyRemaining = 0.4;
+      this.marks.position.copy(cutting.boardAnchor.position);
+      this.marks.position.y += 0.23;
+    }
+    this.wasReady = ready;
+    this.readyRemaining = ready ? Math.max(0, this.readyRemaining - deltaTime) : 0;
+    const ingredient = this.station.storedIngredient?.model;
+    if (ingredient) {
+      const impact = Math.max(0, 1 - Math.abs(cutting.chopProgress - 0.69) / 0.09);
+      ingredient.position.y = cutting.isCutting ? impact * 0.035 : 0;
+    }
     if (cutting.isCutting) {
       const q = cutting.chopProgress;
       const smooth = (value) => value * value * (3 - 2 * value);
@@ -56,8 +71,11 @@ export class CuttingEffects {
     this.knife.visible = cutting.state === 'EMPTY' || cutting.isCutting;
     if (cutting.state === 'EMPTY') this.flashRemaining = 0;
     this.flashRemaining = Math.max(0, this.flashRemaining - Math.min(deltaTime, 0.05));
-    this.marks.visible = this.flashRemaining > 0;
-    this.material.opacity = this.flashRemaining / 0.18 * 0.55;
+    const finish = this.readyRemaining / 0.4;
+    this.marks.visible = this.flashRemaining > 0 || finish > 0;
+    this.marks.scale.setScalar(finish > 0 ? 1 + (1 - finish) * 1.8 : 1);
+    this.material.color.set(finish > 0 ? '#c7f2ad' : '#fff2df');
+    this.material.opacity = Math.max(finish * 0.65, this.flashRemaining / 0.18 * 0.55);
   }
 
   dispose() {

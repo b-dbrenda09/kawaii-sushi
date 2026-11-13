@@ -35,6 +35,7 @@ export class Customer {
 
   update(dt, canMove = true) {
     this.happyRemaining = Math.max(0, (this.happyRemaining ?? 0) - dt);
+    this.sadRemaining = Math.max(0, (this.sadRemaining ?? 0) - dt);
     this.elapsed += dt;
     let walking = false;
     if (this.moving && canMove) {
@@ -66,6 +67,12 @@ export class Customer {
     body.position.y = walking ? Math.abs(Math.sin(phase)) * 0.035 : Math.sin(this.elapsed * 2.4) * 0.012;
     head.rotation.z = Math.sin(this.elapsed * 1.3) * 0.035;
     head.rotation.y = walking ? 0 : Math.sin(this.elapsed * 0.8) * 0.07;
+    this.rig.ears.forEach(({ mesh, angle }, i) => {
+      mesh.rotation.z = angle + (walking ? 0 : Math.sin(this.elapsed * 1.7 + i) * .025);
+    });
+    this.rig.satisfaction.visible = this.happyRemaining > 0;
+    this.rig.satisfaction.position.y = 1.73 + (1 - (this.happyRemaining ?? 0)) * .22;
+    this.rig.satisfaction.scale.setScalar(.75 + .25 * Math.sin(Math.PI * (this.happyRemaining ?? 0)));
     arms.forEach((arm, i) => { arm.rotation.x = walking ? Math.sin(phase + i * Math.PI) * 0.5 : Math.sin(this.elapsed * 2 + i) * 0.06; });
     legs.forEach((leg, i) => { leg.rotation.x = walking ? Math.sin(phase + Math.PI + i * Math.PI) * 0.48 : 0; });
     const blink = (this.elapsed + Number(this.id.split('-').at(-1)) * 0.73) % 4.3;
@@ -94,6 +101,10 @@ export class Customer {
       arms[0].rotation.x += Math.sin(this.elapsed * 3) * 0.13;
       legs[1].rotation.x = Math.max(0, Math.sin(this.elapsed * (impatient ? 8 : 4))) * (impatient ? 0.2 : 0.09);
     }
+    if ((this.serviceResult === 'EXPIRED' || this.serviceResult === 'REJECTED') && this.sadRemaining > 0) {
+      this.animation = 'SAD'; head.rotation.x = .06;
+      arms.forEach(arm => { arm.rotation.x = -.12; });
+    } else head.rotation.x = 0;
   }
 
   dispose() {

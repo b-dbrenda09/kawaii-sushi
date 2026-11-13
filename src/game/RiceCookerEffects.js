@@ -80,16 +80,18 @@ export class RiceCookerEffects {
     if (state === 'EMPTY') this.lidPivot.rotation.x = 0;
     else this.lidPivot.rotation.x += (targetLid - this.lidPivot.rotation.x) * (1 - Math.exp(-10 * Math.min(deltaTime, 0.2)));
     this.phase = (this.phase + deltaTime) % 1.4;
+    this.lidPivot.rotation.z = cooking ? Math.sin(this.phase / 1.4 * Math.PI * 6) * .006 : 0;
     for (const { mesh, index } of this.particles) {
       mesh.visible = cooking || burnt;
       if (!mesh.visible) { mesh.material.opacity = 0; continue; }
       const age = (this.phase / 1.4 + index / this.particles.length) % 1;
       mesh.position.set(-0.15 + Math.sin(age * 5 + index) * 0.11, 1.98 + age * 0.65, Math.cos(index * 2) * 0.09);
+      mesh.scale.set(0.055 + age * 0.06, 0.07 + age * 0.065, 0.055 + age * 0.06);
       mesh.material.color.set(burnt ? '#827674' : '#fffdfa');
       mesh.material.opacity = Math.sin(age * Math.PI) * (burnt ? 0.22 : 0.3);
     }
-    this.glow.visible = ready && cooker.elapsed < 0.9;
-    this.glow.material.opacity = this.glow.visible ? 0.28 * (1 - cooker.elapsed / 0.9) : 0;
+    this.glow.visible = ready;
+    this.glow.material.opacity = ready ? 0.13 + 0.21 * Math.max(0, 1 - cooker.elapsed / 0.9) : 0;
   }
 
   dispose() {

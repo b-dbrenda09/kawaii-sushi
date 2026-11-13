@@ -6,7 +6,7 @@ export class SushiFactory {
   constructor() {
     this.geometries = new Map();
     this.materials = Object.fromEntries(Object.entries({ plate: '#fff0dd', rim: '#edb3c0', rice: '#fffdf0',
-      salmon: '#f49b83', stripe: '#ffdac4', nori: '#294d3b', cucumber: '#82bd62' })
+      salmon: '#f49b83', stripe: '#ffdac4', nori: '#294d3b', cucumber: '#82bd62', bamboo: '#dfbc83', blade: '#dbe5e9' })
       .map(([name, color]) => [name, new MeshStandardMaterial({ color, roughness: 0.8 })]));
     this.sphere = new SphereGeometry(1, 12, 8);
     this.cylinder = new CylinderGeometry(1, 1, 1, 16);
@@ -48,9 +48,18 @@ export class SushiFactory {
     if (sequence.includes('rice_cooked')) {
       this.box(root, 'rice', [0.55, 0.08, 0.3], [0, noriFirst ? 0.127 : 0.11, 0]);
       for (let i = 0; i < 12; i++) this.mesh(root, this.sphere, 'rice',
-        [-0.225 + (i % 6) * 0.09, noriFirst ? 0.169 : 0.152, -0.075 + Math.floor(i / 6) * 0.15], [0.034, 0.015, 0.025]);
+        [-0.225 + (i % 6) * 0.09, noriFirst ? 0.169 : 0.152, -0.102 + Math.floor(i / 6) * 0.204], [0.034, 0.015, 0.025]);
     }
     if (!noriFirst && sequence.includes('nori_sheet')) this.box(root, 'nori', [0.49, 0.016, 0.25], [0, 0.169, 0]);
+    // Ingredientes adicionados antes da base continuam visíveis na prévia.
+    const salmon = sequence.includes('salmon_cut');
+    if (sequence.includes('cucumber_cut')) for (const z of [-.115, .115]) {
+      this.box(root, 'cucumber', [.44, .04, .05], [0, .206, z]);
+    }
+    if (salmon) {
+      this.box(root, 'salmon', [.45, .044, .155], [0, .206, 0]);
+      for (const x of [-.13, 0, .13]) this.box(root, 'stripe', [.024, .008, .135], [x, .23, 0]);
+    }
     return root;
   }
 
@@ -59,6 +68,9 @@ export class SushiFactory {
     if (recipe.model === 'nigiri') {
       for (const x of [-0.19, 0.19]) {
         this.mesh(root, this.sphere, 'rice', [x, 0.135, 0], [0.145, 0.075, 0.16]);
+        for (const side of [-1, 1]) for (const z of [-.09, 0, .09]) {
+          this.mesh(root, this.sphere, 'rice', [x + side * .13, .15, z], [.02, .014, .027]);
+        }
         this.box(root, 'salmon', [0.27, 0.045, 0.32], [x, 0.205, 0]);
         for (const z of [-0.09, 0.02, 0.12]) this.box(root, 'stripe', [0.24, 0.004, 0.012], [x, 0.23, z]);
       }

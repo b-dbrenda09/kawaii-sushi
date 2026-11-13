@@ -22,7 +22,7 @@ export class CuttingUI {
   update(cutting, camera) {
     this.point.copy(cutting.boardAnchor.position).setY(4.25);
     this.station.model.localToWorld(this.point).project(camera);
-    this.root.hidden = cutting.state === 'EMPTY' || Math.abs(this.point.x) > 1 || Math.abs(this.point.y) > 1;
+    this.root.hidden = this.station.fireState === 'burning' || cutting.state === 'EMPTY' || Math.abs(this.point.x) > 1 || Math.abs(this.point.y) > 1;
     this.root.dataset.state = cutting.state;
     const x = (this.point.x + 1) * this.container.clientWidth / 2;
     const y = (1 - this.point.y) * this.container.clientHeight / 2;

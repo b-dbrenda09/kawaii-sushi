@@ -118,6 +118,10 @@ try {
   const canvasBefore=await evaluate('JSON.stringify(__kawaiiTestGame.renderer.domElement.getBoundingClientRect())');
   await command('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyE',key:'e',windowsVirtualKeyCode:69});
   await command('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyE',key:'e',windowsVirtualKeyCode:69});
+  await waitFor('__kawaiiTestGame.questionSystem.active?.phase==="QUESTION"','Desafio de entrega ausente');
+  await evaluate(`(() => { const q=__kawaiiTestGame.questionSystem,active=q.active;
+    q.select(active.question.respostaCorreta,active.playerId);q.confirm(active.playerId); })()`);
+  await waitFor('__kawaiiTestGame.session.mode==="PLAYING"','Desafio não retomou o jogo');
   await waitFor('testOrder.state==="COMPLETED"','Entrega n?o concluiu');
   assert.equal(await evaluate('__kawaiiTestGame.carrySystem.carriedIngredient'),null);
   assert.ok(await evaluate('__kawaiiTestGame.scoreSystem.score>=100'));

@@ -1,11 +1,13 @@
 export class ResultsUI {
-  constructor(container, restart) {
+  constructor(container, restart, onMainMenu = () => {}) {
     const doc = container.ownerDocument;
     this.timer = doc.createElement('div'); this.timer.className = 'match-timer'; this.timer.setAttribute('role', 'timer'); this.timer.setAttribute('aria-label', 'Tempo restante');
     this.root = doc.createElement('div'); this.root.className = 'results-overlay'; this.root.hidden = true;
-    this.root.innerHTML = '<section class="results-panel" role="dialog" aria-modal="true" aria-labelledby="results-title"><h1 id="results-title">Expediente encerrado!</h1><p class="results-stars"></p><dl></dl><button type="button">Jogar novamente</button></section>';
+    this.root.innerHTML = '<section class="results-panel" role="dialog" aria-modal="true" aria-labelledby="results-title"><p class="restaurant-brand">Hello Kitty Sushi</p><h1 id="results-title">Expediente encerrado!</h1><p class="results-stars"></p><dl></dl><button type="button">Jogar novamente</button></section>';
     this.button = this.root.querySelector('button'); this.button.onclick = restart;
-    this.onKey = event => { if (!this.root.hidden && event.code === 'Tab') { event.preventDefault(); this.button.focus(); } };
+    this.menuButton = doc.createElement('button'); this.menuButton.type = 'button'; this.menuButton.textContent = 'Voltar à seleção de modo';
+    this.menuButton.dataset.action = 'mode-menu'; this.menuButton.onclick = onMainMenu; this.root.querySelector('section').append(this.menuButton);
+    this.onKey = event => { if (!this.root.hidden && event.code === 'Tab') { event.preventDefault(); (doc.activeElement === this.button ? this.menuButton : this.button).focus(); } };
     doc.defaultView.addEventListener('keydown', this.onKey); this.doc = doc;
     this.hud = doc.createElement('div'); this.hud.className = 'match-hud';
     const score = container.querySelector('.score-hud'), orders = container.querySelector('.order-panel');
@@ -23,5 +25,5 @@ export class ResultsUI {
     }
     this.root.hidden = false; this.button.focus({ preventScroll: true });
   }
-  dispose() { this.doc.defaultView.removeEventListener('keydown', this.onKey); this.button.onclick = null; this.root.remove(); this.hud.remove(); }
+  dispose() { this.doc.defaultView.removeEventListener('keydown', this.onKey); this.button.onclick = null; this.menuButton.onclick = null; this.root.remove(); this.hud.remove(); }
 }

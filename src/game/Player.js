@@ -17,14 +17,17 @@ import { BALANCE } from './Balance.js';
 
 // Frente do modelo em +Z, pés em Y = 0. Não depende da orientação da câmera.
 export class Player {
-  constructor({ position = new Vector3(0, 0, 1), rotation = Math.PI / 4,
-    movementBounds = null, collisionSystem = null, colliderRadius = 0.52,
+  constructor({ id = 'player', character = 'kitty', chef = false, position = new Vector3(0, 0, 1), rotation = Math.PI / 4,
+    movementBounds = null, collisionSystem = null, colliderRadius = 0.52, modelScale = BALANCE.player.modelScale,
     dashSpeedMultiplier = BALANCE.player.dashSpeed / BALANCE.player.walkSpeed,
     dashDuration = BALANCE.player.dashDuration, dashCooldown = BALANCE.player.dashCooldown } = {}) {
+    if (!Number.isFinite(modelScale) || modelScale <= 0) throw new Error('Escala do personagem deve ser positiva.');
+    this.id = id; this.character = character; this.modelScale = modelScale;
     this.group = new Group();
-    this.group.name = 'hello-kitty';
+    this.group.name = character === 'daniel' ? 'dear-daniel' : 'hello-kitty';
     this.group.position.copy(position);
     this.group.rotation.y = rotation;
+    this.group.scale.setScalar(modelScale);
     this.elapsedTime = 0;
     this.maxSpeed = BALANCE.player.walkSpeed;
     this.acceleration = 12;
@@ -80,7 +83,11 @@ export class Player {
     this.leftArm = this.part('left-arm', this.body, [0.46, 0.6, 0]);
     this.rightArm = this.part('right-arm', this.body, [-0.46, 0.6, 0]);
     this.carryAnchor = this.part('carry-anchor', this.body, [0, 0.5, 0.67]);
+    // Food keeps its station size while the character rig is uniformly smaller.
+    this.carryAnchor.scale.setScalar(1 / modelScale);
     this.carryWeight = 0;
+    this.gestureRemaining = 0;
+    this.gestureReach = 0;
     this.cutAction = null;
     this.cutPose = null;
     this.cutWeight = 0;
@@ -90,6 +97,18 @@ export class Player {
     this.rightLeg = this.part('right-hip', this.feet, [-0.245, 0.62, 0]);
     this.createBody();
     this.createHead();
+    if (chef) {
+      this.materials.yellow.color.set(character === 'daniel' ? '#acdff5' : '#f5a2c7');
+      this.materials.blue.color.set('#fffaf4');
+      this.materials.red.color.set('#f17bb3');
+      if (character === 'daniel') {
+        this.bow.visible = false;
+        for (let i = 0; i < 3; i++) {
+          const tuft = this.oval('daniel-hair-' + i, this.head, this.materials.white, [(i - 1) * .18, .69, .12], [.13, .3, .15]);
+          tuft.rotation.z = -.4 + i * .3;
+        }
+      }
+    }
     for (let i = 0; i < 8; i++) {
       const material = new MeshBasicMaterial({ color: i % 2 ? '#cceafa' : '#f9cfe5', transparent: true, opacity: 0, depthWrite: false });
       this.materials[`trail-${i}`] = material;
@@ -254,7 +273,26 @@ export class Player {
     this.velocityOffset.set(0, 0, 0);
   }
 
-  get movementLocked() { return this.cutAction !== null; }
+  get movementLocked() { return this.cutAction !== null || Boolean(this.extinguishing); }
+
+  beginExtinguishing(target) {
+    if (this.disposed || this.cutAction || this.dashRemaining > 0) return false;
+    this.extinguishing = true; this.stopMoving();
+    this.group.rotation.y = Math.atan2(target.x - this.group.position.x, target.z - this.group.position.z);
+    return true;
+  }
+
+  endExtinguishing() {
+    if (!this.extinguishing) return;
+    this.extinguishing = false; this.stopMoving();
+  }
+
+  gesture(reach, { duration = .24, kind = 'transfer' } = {}) {
+    this.gestureDuration = duration;
+    this.gestureKind = kind;
+    this.gestureRemaining = duration;
+    this.gestureReach = reach;
+  }
 
   beginCutting(target, { recoverySpeed = 16, aimFraction = 0.35 } = {}) {
     if (this.disposed || this.movementLocked || this.dashRemaining > 0 || this.carryAnchor.children.length) return false;
@@ -284,8 +322,8 @@ export class Player {
 
   animateCutting(deltaTime) {
     const pose = this.cutPose;
-    this.cutWeight += ((this.movementLocked ? 1 : 0) - this.cutWeight)
-      * (1 - Math.exp(-(this.movementLocked ? 24 : this.cutRecoverySpeed) * deltaTime));
+    this.cutWeight += ((this.cutAction ? 1 : 0) - this.cutWeight)
+      * (1 - Math.exp(-(this.cutAction ? 24 : this.cutRecoverySpeed) * deltaTime));
     if (!pose) return;
     const smooth = (value) => value * value * (3 - 2 * value);
     const q = Math.max(0, (pose.progress - pose.aimFraction) / (1 - pose.aimFraction));
@@ -317,25 +355,40 @@ export class Player {
     if (!locked && deltaTime > dashStep) this.updateMovement(deltaTime - dashStep, direction);
     this.cooldownRemaining = Math.max(0, this.cooldownRemaining - deltaTime);
     this.actualSpeed = deltaTime > 0 ? this.group.position.distanceTo(this.previousPosition) / deltaTime : 0;
-    this.state = locked ? 'cutting' : this.dashRemaining > 0 ? 'dashing' : this.actualSpeed > 0.01 ? 'walking' : 'idle';
+    this.state = locked ? this.extinguishing ? 'extinguishing' : 'cutting' : this.dashRemaining > 0 ? 'dashing' : this.actualSpeed > 0.01 ? 'walking' : 'idle';
     this.elapsedTime = (this.elapsedTime + deltaTime) % (Math.PI * 2 / 1.8);
     const phase = this.elapsedTime * 1.8;
     // Movimento absoluto a partir do tempo: mesma pose para o mesmo tempo em qualquer FPS.
     const blend = 1 - Math.exp(-16 * deltaTime);
     this.walkWeight += (Math.min(this.actualSpeed / this.maxSpeed, 1) - this.walkWeight) * blend;
-    this.walkPhase = (this.walkPhase + this.actualSpeed * deltaTime * 3.6) % (Math.PI * 2);
+    const dashPose = dashStep > 0 && this.actualSpeed > 0.1;
+    this.walkPhase = (this.walkPhase + Math.min(this.actualSpeed, this.maxSpeed) * deltaTime * 5.6) % (Math.PI * 2);
     const swing = Math.sin(this.walkPhase) * this.walkWeight;
-    this.body.position.y = 0.66 + (1 - Math.cos(phase)) * 0.012 + Math.abs(swing) * 0.025;
-    const lean = this.state === 'dashing' ? 0.16 : 0;
+    const idleWeight = (1 - this.walkWeight) * (locked ? 0 : 1);
+    this.body.position.y = 0.66 + (1 - Math.cos(phase)) * 0.01 * idleWeight + Math.abs(swing) * 0.025;
+    this.head.rotation.x = -0.08 + Math.cos(phase) * 0.025 * idleWeight - swing * 0.025;
+    this.head.rotation.z = Math.sin(phase) * 0.035 * idleWeight - swing * 0.04;
+    const lean = dashPose ? 0.27 : 0;
     const leanAngle = Math.atan2(this.dashDirection.x, this.dashDirection.z) - this.group.rotation.y;
     this.body.rotation.x += (Math.cos(leanAngle) * lean - this.body.rotation.x) * blend;
     this.body.rotation.z += (-Math.sin(leanAngle) * lean - this.body.rotation.z) * blend;
     this.carryWeight += ((this.carryAnchor.children.length ? 1 : 0) - this.carryWeight) * blend;
     const freeWeight = 1 - this.carryWeight;
-    this.leftArm.rotation.z = (-0.08 + Math.sin(phase) * 0.025) * freeWeight - 0.7 * this.carryWeight;
-    this.rightArm.rotation.z = (0.08 - Math.sin(phase) * 0.025) * freeWeight + 0.7 * this.carryWeight;
-    this.leftArm.rotation.x = swing * 0.55 * freeWeight - 1.12 * this.carryWeight;
-    this.rightArm.rotation.x = -swing * 0.55 * freeWeight - 1.12 * this.carryWeight;
+    this.gestureRemaining = Math.max(0, this.gestureRemaining - deltaTime);
+    const gesturePhase = this.gestureRemaining / (this.gestureDuration || .24);
+    const reach = Math.sin(Math.PI * gesturePhase) * this.gestureReach;
+    const armSway = Math.sin(phase) * 0.025 * idleWeight;
+    this.leftArm.rotation.z = (-0.08 + armSway) * freeWeight - 0.85 * this.carryWeight;
+    this.rightArm.rotation.z = (0.08 - armSway) * freeWeight + 0.85 * this.carryWeight;
+    this.leftArm.rotation.x = swing * 0.55 * freeWeight - 1.18 * this.carryWeight - reach;
+    this.rightArm.rotation.x = -swing * 0.55 * freeWeight - 1.18 * this.carryWeight - reach;
+    if (this.gestureKind === 'assembly' && this.gestureRemaining > 0 && !locked) {
+      const work = Math.sin(Math.PI * gesturePhase) * (1 - this.walkWeight);
+      const hands = Math.sin(gesturePhase * Math.PI * 4) * work * .09;
+      this.leftArm.rotation.z -= hands;
+      this.rightArm.rotation.z += hands;
+      this.body.rotation.x += .045 * work * blend;
+    }
     this.leftLeg.rotation.x = -swing * 0.38;
     this.rightLeg.rotation.x = swing * 0.38;
     this.animateCutting(deltaTime);
@@ -344,7 +397,9 @@ export class Player {
       hip.position.y = 0.62;
       this.group.updateMatrixWorld(true);
       const bottom = this.footBounds.setFromObject(hip).min.y;
-      hip.position.y += Math.max(0, this.group.position.y - bottom);
+      const step = Math.cos(this.walkPhase) * (hip === this.leftLeg ? 1 : -1);
+      hip.position.y += Math.max(0, this.group.position.y - bottom) / this.modelScale
+        + Math.max(0, step) * this.walkWeight * 0.10;
     }
     this.updateTrails(deltaTime);
     // Os pivôs preservam os offsets originais de pernas, pés e roupas.
@@ -357,7 +412,7 @@ export class Player {
       if (trail) {
         trail.age = 0;
         trail.position.copy(this.group.position).addScaledVector(this.dashDirection, -0.35);
-        trail.position.y += 0.3;
+        trail.position.y += 0.22;
       }
       this.trailClock = 0;
     }
@@ -368,7 +423,10 @@ export class Player {
       if (!trail.mesh.visible) continue;
       trail.mesh.position.copy(trail.position);
       this.group.worldToLocal(trail.mesh.position);
-      trail.mesh.material.opacity = (1 - trail.age / 0.28) * 0.4;
+      const fade = 1 - trail.age / 0.28;
+      trail.mesh.rotation.y = Math.atan2(this.dashDirection.x, this.dashDirection.z) - this.group.rotation.y;
+      trail.mesh.scale.set(0.06 * fade, 0.055 * fade, 0.13 + 0.1 * fade);
+      trail.mesh.material.opacity = fade * 0.34;
     }
   }
 

@@ -36,6 +36,7 @@ for (const mode of ['map', 'camera', 'character']) {
   input.setEnabled(false); assert.equal(input.getDirection().length(), 0); assert.equal(input.getTurn(), 0); input.setEnabled(true);
 }
 assert.equal(JSON.stringify({ p: camera.position.toArray(), q: camera.quaternion.toArray() }), original);
+
 settings.setMovementMode('character'); player.autoFaceMovement = false;
 for (const code of ['KeyA', 'KeyD', 'KeyS']) {
   player.stopMoving(); input.reset(); key('keydown', code); const angle = player.group.rotation.y;

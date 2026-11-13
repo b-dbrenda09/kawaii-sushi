@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { Scene } from '../src/game/Scene.js';
+import { answerDelivery } from './answer-delivery.mjs';
 import { IngredientFactory } from '../src/game/IngredientFactory.js';
 import { SushiFactory } from '../src/game/SushiFactory.js';
 import { CarrySystem } from '../src/game/CarrySystem.js';
@@ -35,7 +36,7 @@ const target = new EventTarget(), input = new Input(null, { target, documentTarg
 const interaction = new InteractionSystem({ stations: stations.values(), collisionSystem: collision, carrySystem: carry });
 const customers = new CustomerSystem({ scene: world.scene, delivery: stations.get('delivery'), firstArrival: 9999 });
 customers.orderSystem.random = () => .99;
-const customer = customers.spawn(); for (let i = 0; i < 300; i++) customers.update(.05);
+const customer = customers.spawn(); for (let i = 0; !customer.orderId && i < 800; i++) customers.update(.05);
 const pending = customers.orderSystem.getActiveOrder(customer.id); assert.equal(pending.recipeId, 'cucumber_uramaki');
 const score = new ScoreSystem();
 const delivery = new DeliverySystem({ station: stations.get('delivery'), carrySystem: carry, customerSystem: customers,
@@ -83,7 +84,7 @@ try {
       assert.equal(press(assembly.station).kind, 'take-sushi');
       const dish = carry.carriedIngredient;
       if (count++ === 0) {
-        assert.equal(press(stations.get('delivery')).kind, 'delivery');
+        assert.equal(press(stations.get('delivery')).kind, 'delivery-question'); answerDelivery(delivery);
         assert.equal(pending.state, 'COMPLETED'); assert.equal(dish.disposed, true); assert.ok(score.score >= 120);
       } else carry.discard();
       assert.equal(assembly.state, 'EMPTY'); assert.equal(assembly.ingredients.length, 0);

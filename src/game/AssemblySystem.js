@@ -1,6 +1,7 @@
-import { Group } from 'three';
+import { Box3, Group, Matrix4 } from 'three';
 import { RecipeSystem } from './RecipeSystem.js';
 import { BALANCE } from './Balance.js';
+import { AssemblyEffects } from './AssemblyEffects.js';
 
 export const ASSEMBLY_STATES = Object.freeze({ EMPTY: 'EMPTY', ASSEMBLING: 'ASSEMBLING', READY: 'READY' });
 
@@ -25,6 +26,7 @@ export class AssemblySystem {
     this.contents.name = 'assembly-consumed-ingredients';
     this.contents.visible = false;
     station.model.add(this.contents);
+    this.effects = new AssemblyEffects(this);
     this.refreshPreview();
     station.behavior = this;
   }
@@ -34,11 +36,32 @@ export class AssemblySystem {
   get cancelProgress() { return this.cancelElapsed / this.cancelDuration; }
 
   refreshPreview() {
+    this.effects.clear();
     this.preview?.removeFromParent();
     this.preview?.clear();
     this.preview = this.factory.preview(this.sequence);
-    this.preview.position.y = 0.005;
     this.anchor.add(this.preview);
+    this.fitVisual(this.preview);
+  }
+
+  // Mede no referencial do próprio modelo, inclusive sob pais rotacionados/escalados.
+  fitVisual(model) {
+    model.position.set(0, 0, 0); model.rotation.set(0, 0, 0); model.scale.setScalar(1);
+    model.updateWorldMatrix(true, true);
+    const inverse = new Matrix4().copy(model.matrixWorld).invert(), bounds = new Box3();
+    model.traverse(part => {
+      if (!part.geometry) return;
+      part.geometry.computeBoundingBox();
+      const relative = new Matrix4().multiplyMatrices(inverse, part.matrixWorld);
+      bounds.union(part.geometry.boundingBox.clone().applyMatrix4(relative));
+    });
+    if (bounds.isEmpty()) return;
+    const scale = Math.min(1, this.station.storage.width * .94 / (bounds.max.x - bounds.min.x),
+      this.station.storage.depth * .94 / (bounds.max.z - bounds.min.z));
+    model.scale.setScalar(scale);
+    model.position.set(-(bounds.min.x + bounds.max.x) / 2 * scale, .003 - bounds.min.y * scale,
+      -(bounds.min.z + bounds.max.z) / 2 * scale);
+    return { scale, floorOffset: model.position.y - 0.003 };
   }
 
   validNext(item) {
@@ -57,12 +80,15 @@ export class AssemblySystem {
   result(success, kind, message) { return { success, kind, message }; }
 
   interact(carrySystem = this.carrySystem) {
+    if (this.station.fireState === 'burning') return this.result(false, 'burning', 'Estação em chamas!');
+    if (carrySystem.carriedTool) return this.result(false, 'unavailable', 'Libere as mãos para preparar ingredientes.');
     if (this.station.interactingPlayer && this.station.interactingPlayer !== carrySystem.player) return this.result(false, 'unavailable', 'Bancada em uso.');
     this.carrySystem = carrySystem;
     if (this.disposed) return this.result(false, 'unavailable', 'Montagem indisponível.');
     const carried = this.carrySystem.carriedIngredient;
     if (this.state === 'READY') {
       if (carried) return this.result(false, 'unavailable', 'Mãos ocupadas');
+      this.effects.clear();
       const dish = this.dish;
       this.dish = null;
       dish.model.scale.setScalar(1);
@@ -74,6 +100,7 @@ export class AssemblySystem {
     }
     if (this.state === 'EMPTY' && carried?.kind === 'sushi') {
       this.dish = this.carrySystem.transferTo(this.anchor, { location: 'surface', ownerId: this.station.id, position: [0, 0.005, 0] });
+      this.fitVisual(this.dish.model);
       this.preview.visible = false;
       this.state = 'READY';
       return this.result(true, 'place-sushi', 'Sushi colocado na ilha.');
@@ -91,27 +118,40 @@ export class AssemblySystem {
       this.dish = dish;
       dish.location = 'surface';
       dish.ownerId = this.station.id;
-      dish.model.position.y = 0.005;
       this.anchor.add(dish.model);
+      this.completionPose = this.fitVisual(dish.model);
       this.state = 'READY';
       this.completionRemaining = 0.6;
+      this.animateCompletion(0);
+      this.effects.finish(next.complete);
+      this.carrySystem.player.gesture?.(.65, { duration: .55, kind: 'assembly' });
       return this.result(true, 'finish-sushi', `${dish.name} pronto!`);
     }
     this.state = 'ASSEMBLING';
     this.refreshPreview();
+    this.effects.place(carried.state);
+    this.carrySystem.player.gesture?.(.65, { duration: .55, kind: 'assembly' });
     return this.result(true, 'add-ingredient', 'Ingrediente adicionado à montagem.');
+  }
+
+  animateCompletion(dt) {
+    if (!this.dish || !this.completionPose || this.completionRemaining <= 0) return;
+    this.completionRemaining = Math.max(0, this.completionRemaining - dt);
+    const t = 1 - this.completionRemaining / 0.6;
+    const stretch = 1 - 0.36 * (1 - t) ** 4 + 0.14 * Math.sin(t * Math.PI * 2) * (1 - t);
+    const { scale, floorOffset } = this.completionPose;
+    this.dish.model.scale.y = scale * stretch;
+    this.dish.model.position.y = 0.003 + floorOffset * stretch;
   }
 
   resetCancellation() { this.cancelElapsed = 0; this.cancelEligible = false; this.station.interactingPlayer = null; }
 
   update(deltaTime, { selected = false, cancelHeld = false, disabled = false } = {}) {
     if (this.disposed) return;
+    if (this.station.fireState === 'burning') { this.resetCancellation(); return; }
     const dt = Number.isFinite(deltaTime) ? Math.max(0, Math.min(deltaTime, 1)) : 0;
-    this.completionRemaining = Math.max(0, this.completionRemaining - dt);
-    if (this.dish) {
-      const pulse = 1 + Math.sin((0.6 - this.completionRemaining) / 0.6 * Math.PI) * 0.035;
-      this.dish.model.scale.setScalar(this.completionRemaining > 0 ? pulse : 1);
-    }
+    this.animateCompletion(dt);
+    this.effects.update(Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0);
     const eligible = selected && cancelHeld && !disabled && this.state === 'ASSEMBLING'
       && !this.carrySystem.carriedIngredient && !this.carrySystem.player.movementLocked
       && this.carrySystem.player.state !== 'dashing' && !(this.carrySystem.player.dashRemaining > 0);
@@ -130,6 +170,7 @@ export class AssemblySystem {
 
   dispose() {
     if (this.disposed) return;
+    this.effects.dispose();
     this.ingredients.forEach((ingredient) => ingredient.dispose());
     this.ingredients = [];
     this.dish?.dispose();

@@ -17,6 +17,7 @@ export class RiceCookerSystem {
     this.burnDelay = burnDelay;
     this._state = 'EMPTY';
     this.elapsed = 0;
+    this.fireAttempted = false;
     this.content = null;
     this.disposed = false;
     this.contentAnchor = new Group();
@@ -39,6 +40,7 @@ export class RiceCookerSystem {
     }
     this._state = next;
     this.elapsed = 0;
+    this.fireAttempted = false;
     this.effects?.update(0, this);
   }
 
@@ -96,6 +98,8 @@ export class RiceCookerSystem {
   }
 
   interact(carrySystem = this.carrySystem) {
+    if (this.station.fireState === 'burning') return this.result(false, 'burning', 'Estação em chamas!');
+    if (carrySystem.carriedTool) return this.result(false, 'unavailable', 'Libere as mãos para preparar ingredientes.');
     this.carrySystem = carrySystem;
     if (this.disposed) return this.result(false, 'unavailable', 'Panela indisponível.');
     // Uma única ramificação por pressionamento: colocar nunca inicia o preparo.
@@ -111,11 +115,13 @@ export class RiceCookerSystem {
 
   update(deltaTime) {
     if (this.disposed) return;
+    if (this.station.fireState === 'burning') return;
     deltaTime = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : 0;
     let remaining = deltaTime;
     // Carrega o excedente entre estados, inclusive em quadros lentos que cruzam dois limites.
-    while (remaining > 0 && (this.state === 'COOKING' || this.state === 'READY')) {
-      const duration = this.state === 'COOKING' ? this.cookDuration : this.burnDelay;
+    while (remaining > 0 && (this.state === 'COOKING' || this.state === 'READY' ||
+      (this.state === 'BURNT' && this.station.fireSystem && !this.fireAttempted))) {
+      const duration = this.state === 'COOKING' ? this.cookDuration : this.state === 'READY' ? this.burnDelay : this.station.fireSystem.config.ignitionDelay;
       const untilTransition = Math.max(0, duration - this.elapsed);
       if (remaining + EPSILON < untilTransition) {
         this.elapsed += remaining;
@@ -125,9 +131,14 @@ export class RiceCookerSystem {
       if (this.state === 'COOKING') {
         this.factory.setRiceState(this.content, 'rice_cooked');
         this.transition('READY');
-      } else {
+      } else if (this.state === 'READY') {
         this.factory.setRiceState(this.content, 'rice_burnt');
         this.transition('BURNT');
+      } else {
+        this.fireAttempted = true;
+        this.elapsed = duration;
+        this.station.fireSystem.ignite(this.station, { at: this.station.fireSystem.time + deltaTime - remaining });
+        break;
       }
     }
     this.effects?.update(deltaTime, this);

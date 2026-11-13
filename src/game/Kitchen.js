@@ -1,10 +1,12 @@
-import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
+import { Box3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Station } from './Station.js';
 import { BALANCE } from './Balance.js';
+import { KITCHEN_LAYOUT } from './KitchenLayout.js';
 
 export class Kitchen {
-  constructor() {
+  constructor({ sideExpansion = (KITCHEN_LAYOUT.width - KITCHEN_LAYOUT.baseWidth) / 2 } = {}) {
+    this.sideExpansion = sideExpansion;
     this.group = new Group();
     this.group.name = 'kitchen-equipment';
     this.stations = new Map();
@@ -31,7 +33,7 @@ export class Kitchen {
     this.createAssembly();
     this.createAssembly('assembly2', [-3, 4.5]);
     this.createAssembly('assembly3', [3, 4.5]);
-    for (const x of [-4.4, 4.4]) this.box(this.group, 'rice-bench-continuous-trim', [5, 0.08, 0.08], [x, 1.03, 7.94], 'pink');
+    for (const x of [-4.4, 4.4]) this.box(this.group, 'rice-bench-continuous-trim', [5, 0.08, 0.08], [x + Math.sign(x) * sideExpansion, 1.03, 7.94], 'pink');
     this.createDelivery();
     this.createTrash();
     this.createDecorations();
@@ -39,6 +41,8 @@ export class Kitchen {
   }
 
   station(options) {
+    const peripheral = options.id.endsWith('Box') || options.type === 'cutting' || options.type === 'riceCooker' || options.id === 'trash';
+    if (peripheral) options = { ...options, position: [options.position[0] + Math.sign(options.position[0]) * this.sideExpansion, options.position[1]] };
     const station = new Station(options);
     station.interactionReach = BALANCE.interaction.reachByType[station.type.endsWith('Box') ? 'ingredientBox' : station.type];
     station.accessibleFront = station.type !== 'assembly' && station.type !== 'trash';
@@ -222,12 +226,22 @@ export class Kitchen {
 
   createAssembly(id = 'assembly', position = [0, 0]) {
     const station = this.station({ id, type: 'assembly', position, width: 3.8, depth: 2.4, height: 1.12 });
-    station.configureStorage({ position: [0, 1.12, 0.88], width: 0.9, depth: 0.6 });
     this.counter(station);
     const model = station.model;
     this.box(model, 'bamboo-mat-base', [1.62, 0.035, 1.1], [-0.52, 1.14, 0], 'lightWood');
     for (let i = 0; i < 13; i++) this.box(model, `bamboo-mat-slat-${i}`, [0.087, 0.025, 1.07], [-1.25 + i * 0.122, 1.17, 0], 'wood');
     for (const z of [-0.36, 0.36]) this.box(model, 'bamboo-mat-binding', [1.56, 0.008, 0.018], [-0.52, 1.187, z], 'cream');
+    // O tapete e a montagem compartilham o mesmo referencial local.
+    const mat = new Group(); mat.name = 'assembly-bamboo-mat'; model.add(mat);
+    const surfaceBounds = new Box3();
+    for (const part of [...model.children].filter(part => part.name.startsWith('bamboo-mat-'))) {
+      mat.add(part);
+      part.updateMatrix(); part.geometry.computeBoundingBox();
+      surfaceBounds.union(part.geometry.boundingBox.clone().applyMatrix4(part.matrix));
+    }
+    const center = surfaceBounds.getCenter(new Vector3()), size = surfaceBounds.getSize(new Vector3());
+    station.configureStorage({ position: [center.x, surfaceBounds.max.y, center.z], width: size.x, depth: size.z });
+    mat.add(station.storage.anchor);
     this.box(model, 'sushi-serving-tray', [0.91, 0.065, 0.8], [1.05, 1.155, 0.04], 'dark');
     for (let i = 0; i < 3; i++) {
       const x = 0.78 + i * 0.27;

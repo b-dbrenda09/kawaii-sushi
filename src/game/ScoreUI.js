@@ -11,11 +11,15 @@ export class ScoreUI {
     this.label.textContent = `⭐ Pontos: ${score}`;
     this.feedback.textContent = `${message} ${amount > 0 ? '+' : ''}${amount}`;
     this.root.dataset.effect = amount > 0 ? 'success' : 'error';
+    this.animation?.cancel();
+    if (amount > 0 && !document.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      this.animation = this.feedback.animate?.([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(0)' }], 220);
+    }
     this.remaining = 2;
   }
   update(dt) {
     this.remaining = Math.max(0, this.remaining - dt);
     if (!this.remaining) { this.feedback.textContent = ''; delete this.root.dataset.effect; }
   }
-  dispose() { this.root.remove(); }
+  dispose() { this.animation?.cancel(); this.root.remove(); }
 }
