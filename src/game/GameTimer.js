@@ -1,4 +1,4 @@
-export const MATCH_CONFIG = Object.freeze({ duration: 180, warning: 30, urgent: 10, starThresholds: Object.freeze([1, 3, 5]) });
+export const MATCH_CONFIG = Object.freeze({ duration: 300, warning: 30, urgent: 10, starThresholds: Object.freeze([1, 3, 5]) });
 
 export class GameTimer {
   constructor(config = MATCH_CONFIG) { this.config = config; this.remaining = config.duration; }

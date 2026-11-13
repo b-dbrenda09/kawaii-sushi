@@ -167,10 +167,10 @@ try {
     await waitFor('Boolean(document.querySelector("canvas"))','Canvas ausente');
     const count=mode==='solo'?1:2;
     assert.equal(await evaluate('__kawaiiTestGame.players.length'),count);
-    assert.equal(await evaluate('__kawaiiTestGame.gameTimer.remaining'),180);
+    assert.equal(await evaluate('__kawaiiTestGame.gameTimer.remaining'),300);
     assert.equal(await evaluate('document.querySelectorAll(".player-marker").length'),mode==='coop'?2:0);
     await evaluate('document.querySelector("[data-action=play]").click()');
-    await waitFor('__kawaiiTestGame.gameTimer.remaining<180', 'Cron?metro n?o iniciou', 15000);
+    await waitFor('__kawaiiTestGame.gameTimer.remaining<300', 'Cron?metro n?o iniciou', 15000);
     await evaluate('globalThis.g=__kawaiiTestGame;g.world.players.forEach((p,i)=>{p.group.position.set(i*1.5,0,5.7);p.stopMoving()});');
     await evaluate('g.session.pause();g.session.settings()');
     assert.equal(await evaluate(`(() => {

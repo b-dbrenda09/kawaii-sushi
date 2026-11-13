@@ -92,7 +92,7 @@ export class Game {
       this.orderSystem.onRejected = order => this.results.record('incorrect', order);
       this.orderSystem.onExpired = order => { this.results.record('expired', order); this.scoreSystem.expire(order); this.sound.playExpired(); };
       this.scoreSystem.onIncorrect = () => this.results.record('incorrect');
-      this.questionSystem = new QuestionSystem();
+      this.questionSystem = new QuestionSystem({ elapsed: () => this.gameTimer.config.duration - this.gameTimer.remaining });
       this.deliverySystem = new DeliverySystem({ station: this.world.kitchen.stations.get('delivery'), questionSystem: this.questionSystem,
         carrySystem: this.carrySystem, customerSystem: this.customerSystem, scoreSystem: this.scoreSystem,
         sound: this.sound, isPaused: () => !this.session || this.session.paused || document.hidden || this.disposed });

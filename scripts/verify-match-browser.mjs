@@ -97,9 +97,9 @@ try {
   assert.ok(await evaluate('Boolean(globalThis.__kawaiiTestGame)'));
   assert.equal(await evaluate('__kawaiiTestGame.session.mode'), 'MENU');
 
-  assert.equal(await evaluate('__kawaiiTestGame.gameTimer.text'),'03:00');
+  assert.equal(await evaluate('__kawaiiTestGame.gameTimer.text'),'05:00');
   await evaluate('document.querySelector("[data-action=play]").click()');await delay(1050);
-  assert.ok(await evaluate('__kawaiiTestGame.gameTimer.remaining<180 && __kawaiiTestGame.gameTimer.remaining>178'));
+  assert.ok(await evaluate('__kawaiiTestGame.gameTimer.remaining<300 && __kawaiiTestGame.gameTimer.remaining>298'));
   for(const book of [false,true]) {
     await evaluate(book?'__kawaiiTestGame.recipeBookUI.open()':'__kawaiiTestGame.session.pause()');
     const time=await evaluate('__kawaiiTestGame.gameTimer.remaining');await delay(200);
@@ -127,7 +127,7 @@ try {
     assert.equal(await evaluate('JSON.stringify([g.scoreSystem.score,g.orderSystem.getActiveOrders(),g.customerSystem.clock,g.world.player.group.position])'),frozen);
     await evaluate('document.querySelector(".results-panel button").click();globalThis.__kawaiiTestGame=g.nextGame');
     for(const expression of ['__kawaiiTestGame.scoreSystem.score','__kawaiiTestGame.results.generated','__kawaiiTestGame.ingredientFactory.instances.size+__kawaiiTestGame.sushiFactory.instances.size']) assert.equal(await evaluate(expression),0);
-    assert.equal(await evaluate('__kawaiiTestGame.gameTimer.text'),'03:00');
+    assert.equal(await evaluate('__kawaiiTestGame.gameTimer.text'),'05:00');
     assert.equal(await evaluate('__kawaiiTestGame.controlSettings.movementMode'),'character');
     assert.equal(await evaluate('document.querySelectorAll("canvas").length'),1);
     assert.equal(await evaluate('document.querySelectorAll(".results-overlay").length'),1);

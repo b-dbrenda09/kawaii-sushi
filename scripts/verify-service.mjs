@@ -99,18 +99,18 @@ delivery.dispose(); clients.dispose(); inventories.forEach(inventory => inventor
 
 for (const mode of ['solo', 'coop']) {
   const timer = new GameTimer();
-  const difficulty = new DifficultySystem({ gameMode: mode, elapsed: () => 180 - timer.remaining, random: () => 0 });
+  const difficulty = new DifficultySystem({ gameMode: mode, elapsed: () => timer.config.duration - timer.remaining, random: () => 0 });
   for (const [elapsed, phase, cap] of [[0, 0, 2], [59.99, 0, 2], [60, 1, 3], [119.99, 1, 3], [120, 2, 4], [180, 2, 4]]) {
-    timer.remaining = 180 - elapsed;
+    timer.remaining = timer.config.duration - elapsed;
     assert.equal(difficulty.index, phase); assert.equal(difficulty.maxOrders, cap);
   }
-  timer.remaining = 180;
+  timer.remaining = timer.config.duration;
   const world = new Scene({ gameMode: mode });
   const stationsBefore = [...world.kitchen.stations.values()].map(station => station.model.matrix.toArray());
   const customers = new CustomerSystem({ scene: world.scene, delivery: world.kitchen.stations.get('delivery'), difficulty });
   const peaks = [0, 0, 0];
   const allIDs = new Set();
-  for (let frame = 0; frame < 180 * 20; frame++) {
+  for (let frame = 0; frame < timer.config.duration * 20; frame++) {
     timer.update(.05); customers.update(.05);
     const active = customers.orderSystem.getActiveOrders();
     assert.ok(active.length <= difficulty.maxOrders);
@@ -130,7 +130,7 @@ for (const mode of ['solo', 'coop']) {
   assert.equal(timer.remaining, 0);
   assert.deepEqual([...world.kitchen.stations.values()].map(station => station.model.matrix.toArray()), stationsBefore);
   customers.dispose(); world.dispose();
-  timer.remaining = 180; assert.equal(difficulty.index, 0); assert.equal(difficulty.maxOrders, 2);
+  timer.remaining = timer.config.duration; assert.equal(difficulty.index, 0); assert.equal(difficulty.maxOrders, 2);
 }
 for (const mode of ['solo', 'coop']) for (const stage of SERVICE_CONFIG[mode]) {
   for (const weights of [stage.orders, stage.profiles]) {
@@ -143,4 +143,4 @@ for (const mode of ['solo', 'coop']) for (const stage of SERVICE_CONFIG[mode]) {
   }
 }
 assert.equal(RECIPES.length, 3);
-console.log('OK: five finished animal rigs, waiting/happy/sad, all profile/order combinations, unique IDs, exact bonuses, once-only scoring/expiry, solo/coop 0/60/120s phases, 2/3/4 actual orders, spacing, unchanged kitchen, 180s and reset.');
+console.log('OK: five finished animal rigs, waiting/happy/sad, all profile/order combinations, unique IDs, exact bonuses, once-only scoring/expiry, solo/coop 0/60/120s phases, 2/3/4 actual orders, spacing, unchanged kitchen, 300s and reset.');

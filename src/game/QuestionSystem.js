@@ -1,14 +1,14 @@
 import { QuestionBank, QUESTION_REWARDS } from './QuestionBank.js';
 
 export class QuestionSystem {
-  constructor({ bank = new QuestionBank(), session = null, now = () => performance.now() / 1000, onChange = () => {} } = {}) {
-    Object.assign(this, { bank, session, now, onChange });
+  constructor({ bank = new QuestionBank(), session = null, now = () => performance.now() / 1000, elapsed = () => 0, onChange = () => {} } = {}) {
+    Object.assign(this, { bank, session, now, elapsed, onChange });
     this.active = null; this.sequence = 0; this.disposed = false;
   }
   get busy() { return Boolean(this.active); }
   open({ playerId, resolve, cancel = () => {}, orderId }) {
     if (this.disposed || this.busy || (this.session && this.session.mode !== 'PLAYING')) return null;
-    const question = this.bank.next(); if (!question) return null;
+    const question = this.bank.next(this.elapsed()); if (!question) return null;
     this.active = { id: `delivery-question-${++this.sequence}`, playerId, orderId, question,
       selectedIndex: null, phase: 'QUESTION', resolve, cancel };
     this.session?.openQuestion(); this.onChange(this.active);
@@ -34,11 +34,20 @@ export class QuestionSystem {
     }
     finally { active.cancel(); }
     active.result = { correct: outcome?.success ? correct : null, ...outcome };
-    active.phase = 'RESULT'; active.resultUntil = this.now() + QUESTION_REWARDS.resultDuration;
+    active.phase = 'RESULT'; active.canContinue = false;
+    active.resultUntil = this.now() + (active.result.correct === true ? QUESTION_REWARDS.correctReadDuration : QUESTION_REWARDS.incorrectReadDuration);
     this.onChange(active); return active.result;
   }
   update() {
-    if (this.active?.phase === 'RESULT' && this.now() >= this.active.resultUntil) this.cancel();
+    if (this.active?.phase === 'RESULT' && !this.active.canContinue && this.now() >= this.active.resultUntil) {
+      this.active.canContinue = true; this.onChange(this.active);
+    }
+  }
+  continue(playerId) {
+    this.update();
+    if (this.active?.phase !== 'RESULT' || !this.active.canContinue || this.active.playerId !== playerId
+      || (this.session && this.session.mode !== 'QUESTION')) return false;
+    this.cancel(); return true;
   }
   cancel({ resume = true } = {}) {
     const active = this.active; if (!active) return;

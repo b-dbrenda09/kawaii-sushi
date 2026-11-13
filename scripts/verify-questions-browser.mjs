@@ -138,6 +138,7 @@ try {
         for(const [width,height] of [[1440,1000],[375,812],[812,375]]) {
           await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await evaluate('g.resize()');
           assert.equal(await evaluate('(()=>{const r=g.questionUI.panel.getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1;})()'),true);
+          assert.equal(await evaluate('getComputedStyle(document.querySelector(".question-options")).gridTemplateColumns.split(" ").length'), 2);
           await shot(`${mode}-open-${width}`);
         }
         await command('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});await evaluate('g.resize()');
@@ -152,7 +153,12 @@ try {
       await key('keyDown','Enter');await key('keyUp','Enter');assert.equal(await evaluate('g.scoreSystem.score'),result.score);
       assert.ok((await evaluate('g.scoreUI.label.textContent')).includes(String(result.score)));
       await shot(`${mode}-${correct?'correct':'incorrect-'+round}`);
-      await waitFor('g.session.mode==="PLAYING"&&!g.questionSystem.busy','Result did not return to gameplay',5000);
+      await waitFor('!document.querySelector(".question-continue").disabled','Continue was not enabled',7000);
+      assert.equal(await evaluate('g.session.mode'), 'QUESTION');
+      assert.ok((await evaluate('document.querySelector(".question-explanation").textContent')).length > 0);
+      assert.equal(await evaluate('document.querySelectorAll(\'.question-option[data-result="correct"]\').length'),1);
+      await evaluate('document.querySelector(".question-continue").click()');
+      await waitFor('g.session.mode==="PLAYING"&&!g.questionSystem.busy','Continue did not return to gameplay',5000);
       assert.equal(await evaluate('g.camera.camera.projectionMatrix.toArray().join(",")===beforeCamera'),true);
       await evaluate('g.stop();for(let i=0;guest.state!=="REMOVED"&&i<3000;i++)g.customerSystem.update(1/60)');
       assert.equal(await evaluate('guest.state==="REMOVED"&&guest.model.position.distanceTo(g.customerSystem.entry)<.001&&guest.slot.customerId===null'),true,'Correct and incorrect answers both exit through the door');
@@ -166,7 +172,7 @@ try {
     await evaluate('g.dispose()');assert.equal(await evaluate('document.querySelectorAll(".question-overlay").length'),0);
   }
   assert.deepEqual(errors,[]);await send('Browser.close');
-  console.log('OK: quiz browser solo/coop: owner controls, 4 options/required selection, demo content, correct +150 / wrong -50, -50/-100/50, HUD/results negatives, single commit, pause/fire/timer, 3 responsive sizes, 1.5s result, both door exits, restart and no console errors.');
+  console.log('OK: quiz browser solo/coop: owner controls, 4 options in 2 columns, network explanations, correct +150 / wrong -50, HUD/results negatives, single commit, pause/fire/timer, 3 responsive sizes, 3s/5s and explicit Continue, both door exits, restart and no console errors.');
 } finally {
   socket?.close();
   if (browser.exitCode === null) await Promise.race([once(browser, 'exit'), delay(3000)]);

@@ -20,13 +20,35 @@ import { QuestionSystem } from '../src/game/QuestionSystem.js';
 import { FireSystem } from '../src/game/FireSystem.js';
 import { RECIPES } from '../src/game/RecipeSystem.js';
 
-assert.ok(QUESTIONS.length >= 3 && QUESTIONS.every(q => q.tema === 'a_definir'));
+assert.equal(QUESTIONS.length, 30);
+for (const difficulty of ['facil', 'media', 'dificil']) assert.equal(QUESTIONS.filter(q => q.dificuldade === difficulty).length, 10);
+assert.equal(new Set(QUESTIONS.map(q => q.enunciado)).size, 30);
+const courseTopics = ['Comunicação em um mundo conectado', 'Componentes e tipos de redes', 'Redes sem fio e móveis',
+  'Construção de redes domésticas', 'Princípios de comunicação', 'Meios físicos de rede', 'Camada de acesso à rede',
+  'Protocolo IP', 'IPv4 e segmentação de redes', 'Endereçamento IPv6', 'DHCP', 'Gateway padrão', 'ARP',
+  'Roteamento entre redes', 'TCP e UDP', 'Serviços da camada de aplicação', 'Ferramentas de teste de rede'];
+assert.deepEqual([...new Set(QUESTIONS.map(q => q.tema))].sort(), [...courseTopics].sort());
+for (const question of QUESTIONS) {
+  assert.equal(question.respostaCorretaLetra, 'ABCD'[question.respostaCorreta]);
+  assert.ok(question.explicacao.trim());
+  assert.doesNotMatch(`${question.enunciado} ${question.explicacao}`, /\b(VLAN|trunk|OSPF|EIGRP|CCNA|ip route|no shutdown)\b/i);
+}
+for (const letter of 'ABCD') assert.ok(QUESTIONS.filter(q => q.respostaCorretaLetra === letter).length >= 7);
+assert.throws(() => new QuestionBank([{ ...QUESTIONS[0], explicacao: '' }]));
+assert.throws(() => new QuestionBank([QUESTIONS[0], { ...QUESTIONS[0], id: 'duplicate' }]));
+for (const [elapsed, difficulty] of [[0, 'facil'], [99.99, 'facil'], [100, 'media'], [199.99, 'media'], [200, 'dificil'], [300, 'dificil']]) {
+  assert.equal(new QuestionBank().next(elapsed).dificuldade, difficulty);
+}
+assert.equal(new QuestionBank(QUESTIONS.filter(q => q.dificuldade === 'facil')).next(250).dificuldade, 'facil');
+assert.notEqual(new QuestionBank(QUESTIONS, { random: () => 0 }).next().id, new QuestionBank(QUESTIONS, { random: () => .99 }).next().id);
+assert.equal(new QuestionBank(QUESTIONS, { progression: [{ from: 0, difficulty: 'dificil' }] }).next().dificuldade, 'dificil');
 const invalid = { ...QUESTIONS[0], alternativas: ['a','b'] };
 assert.throws(() => new QuestionBank([invalid]));
 assert.throws(() => new QuestionBank([QUESTIONS[0], QUESTIONS[0]]));
 assert.throws(() => new QuestionBank([{ ...QUESTIONS[0], respostaCorreta: 4 }]));
 const bag = new QuestionBank(QUESTIONS, { random: () => 0 });
 assert.equal(new Set(QUESTIONS.map(() => bag.next().id)).size, QUESTIONS.length);
+assert.ok(bag.next());
 assert.equal(new QuestionBank([]).next(), null);
 
 const savedDocument = globalThis.document; globalThis.document = { hidden: false, createElement: () => ({ getContext: () => null }) };
@@ -64,6 +86,7 @@ try {
       deliverySystem: delivery, customerSystem: customers, gameTimer: new GameTimer(), resultsUI: { update() {} } });
     const camera = new Camera(1440,1000,world.bounds.clone().union(customers.bounds));
     const projection = camera.camera.projectionMatrix.toArray();
+    assert.equal(game.gameTimer.text, '05:00');
     session.play();
     const actor = contexts.at(-1), otherId = actor.player.id === 'player' ? 'p2' : 'player';
     const frame = () => game.updateSimulation(1/60);
@@ -91,6 +114,7 @@ try {
       assert.equal(score.score,before); assert.equal(order.state,'PENDING'); assert.equal(dish.disposed,false);
       assert.ok(dish.deliveryReservation && order.deliveryReservation); assert.equal(actor.carrySystem.discard().success,false);
       assert.equal(world.players.length,mode==='coop'?2:1); assert.ok(contexts.every(c=>!c.input.enabled));
+      const pausedTime = game.gameTimer.remaining;
       const frozen = freeze(); for(let i=0;i<10;i++)game.updateSimulation(5); assert.equal(freeze(),frozen);
       session.escape(); session.play(); session.settings(); session.openRecipeBook(); assert.equal(session.mode,'QUESTION');
       assert.equal(questions.open({playerId:otherId,resolve(){}}),null);
@@ -109,8 +133,17 @@ try {
       for(let i=0;i<20;i++) { assert.equal(questions.confirm(actor.player.id),null); assert.equal(score.answer(order,correct),0); }
       assert.equal(score.score,before+(correct?150:-50));
       assert.equal(questions.active.phase,'RESULT'); const resultFrozen=freeze(); game.updateSimulation(10); assert.equal(freeze(),resultFrozen);
-      now+=1.499;questions.update();assert.equal(session.mode,'QUESTION');now+=.002;questions.update();assert.equal(session.mode,'PLAYING');
+      assert.equal(questions.continue(actor.player.id), false);
+      now += (correct ? 3 : 5) - .001; questions.update();
+      assert.equal(questions.active.canContinue, false); assert.equal(session.mode, 'QUESTION');
+      now += .002; questions.update(); assert.equal(questions.active.canContinue, true);
+      assert.equal(session.mode, 'QUESTION'); assert.equal(questions.continue(otherId), false);
+      game.updateSimulation(10); assert.equal(freeze(),resultFrozen);
+      assert.equal(questions.continue(actor.player.id), true); assert.equal(session.mode,'PLAYING');
       assert.ok(contexts.every(c=>c.input.enabled)); assert.equal(questions.active,null);
+      assert.equal(game.gameTimer.remaining, pausedTime, 'Question and result consume no match time');
+      frame();
+      assert.equal(game.gameTimer.remaining, pausedTime - 1/60, 'Resume from the exact paused time');
       assert.equal(score.answer(order,correct),0, 'Resolved orders cannot pay or charge again after resuming');
       for(let t=0;customer.state!=='REMOVED'&&t<40;t+=.05)customers.update(.05);
       assert.equal(customer.state,'REMOVED'); assert.ok(customer.model.position.distanceTo(customers.entry)<1e-5);
@@ -141,4 +174,4 @@ try {
 } finally {
   if(savedDocument===undefined)delete globalThis.document;else globalThis.document=savedDocument;
 }
-console.log('OK: demo bank/schema, valid-delivery reservation, owner-only selection, quiz before score, +base/+50 or -50 once, -50/-100/50, 1.5s result, global pause, rejected/successful exit, invalidation, cleanup and solo/coop.');
+console.log('OK: 30 network questions (10 per level), schema, progression/fallback, no repeats, valid delivery, owner-only answers, scoring once including negatives, 3s/5s reading and explicit Continue, exact global pause/resume, cleanup and solo/coop.');

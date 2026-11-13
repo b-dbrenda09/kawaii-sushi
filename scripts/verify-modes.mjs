@@ -80,7 +80,7 @@ for (const mode of ['solo','coop']) {
  }
  const session=new SessionState(), timer=new GameTimer(); const previous=globalThis.document;globalThis.document={hidden:false};
  const game=Object.assign(Object.create(Game.prototype),{world,players,session,gameTimer:timer,resultsUI:{update(){}},preparation:prep,customerSystem:{update(){}},disposed:false});
- game.updateSimulation(1);assert.equal(timer.remaining,180);session.play();game.updateSimulation(.05);assert.equal(timer.remaining,179.95);session.pause();game.updateSimulation(10);assert.equal(timer.remaining,179.95);
+ game.updateSimulation(1);assert.equal(timer.remaining,300);session.play();game.updateSimulation(.05);assert.equal(timer.remaining,299.95);session.pause();game.updateSimulation(10);assert.equal(timer.remaining,299.95);
  globalThis.document=previous;
  players.forEach(c=>c.input.dispose()); key('keydown','KeyW'); players.forEach(c=>assert.equal(c.input.keys.size,0));
  delivery.dispose();orders.dispose();prep.dispose();players.forEach(c=>c.carrySystem.dispose());factory.dispose();sushiFactory.dispose();collision.dispose();world.dispose();
