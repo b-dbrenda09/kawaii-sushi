@@ -197,6 +197,7 @@ export class Game {
     }
     for (const action of actions) {
       const event = action.interactionSystem.update(deltaTime, action.player, { interactPressed: !action.locked && action.interact,
+        interactHeld: action.input.isInteractionHeld(), interactionEpoch: action.input.interactionEpoch,
         disabled: action.wasDashing, preferredStation: action.input.mouseNavigation?.station });
       if (event?.success) this.sound?.playInteraction?.(event.kind);
       if (this.questionSystem?.busy) return; // A first delivery pauses both players before the second can interact.

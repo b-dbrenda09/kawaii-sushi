@@ -15,7 +15,7 @@ export class Kitchen {
       wood: '#d6ab7f', lightWood: '#ebcba3', grain: '#bc9068', cream: '#fff4de',
       blue: '#bcdce6', pink: '#edc4cb', red: '#d78382', metal: '#d8dedb',
       dark: '#596663', nori: '#465e4d', rice: '#fffaf0', salmon: '#eca49a', green: '#a8bea0',
-      cucumber: '#699763', cucumberSkin: '#4c784d', cucumberCenter: '#d5dfa0',
+      cucumber: '#699763', cucumberSkin: '#4c784d', cucumberCenter: '#d5dfa0', plate: '#FF69B4',
     }).map(([name, color]) => [name, new MeshStandardMaterial({ color, roughness: 0.78, metalness: name === 'metal' ? 0.18 : 0 })]));
     this.cylinderGeometry = new CylinderGeometry(1, 1, 1, 16);
     this.sphereGeometry = new SphereGeometry(1, 16, 10);
@@ -242,7 +242,7 @@ export class Kitchen {
     const center = surfaceBounds.getCenter(new Vector3()), size = surfaceBounds.getSize(new Vector3());
     station.configureStorage({ position: [center.x, surfaceBounds.max.y, center.z], width: size.x, depth: size.z });
     mat.add(station.storage.anchor);
-    this.box(model, 'sushi-serving-tray', [0.91, 0.065, 0.8], [1.05, 1.155, 0.04], 'dark');
+    this.box(model, 'sushi-serving-tray', [0.91, 0.065, 0.8], [1.05, 1.155, 0.04], 'plate');
     for (let i = 0; i < 3; i++) {
       const x = 0.78 + i * 0.27;
       this.cylinder(model, `decorative-maki-nori-${i}`, 0.115, 0.17, [x, 1.27, 0.02], 'nori');

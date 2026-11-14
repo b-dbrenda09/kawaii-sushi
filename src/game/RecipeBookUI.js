@@ -51,10 +51,10 @@ export class RecipeBookUI {
     const close = button('Fechar ×', 'close', () => this.close()); close.className = 'recipe-book-close';
     const title = element('h1', 'Livro de receitas'); title.id = 'recipe-book-title';
     const heading = element('h2', recipe.name);
-    const sequence = element('p', recipeIngredients(recipe)); sequence.className = 'recipe-book-ingredients';
-    const steps = doc.createElement('ol');
-    for (const state of recipe.sequence) steps.append(element('li', `${PREPARED_NAMES[state]}: ${PREPARATION_HELP[state]}`));
-    const assembly = element('p', `Na bancada de montagem livre, leve cada ingrediente preparado e pressione E para adicioná-lo ${recipe.orderIndependent ? 'em qualquer ordem, sem repetir ingredientes' : 'na ordem acima'}. Ao terminar, pressione E com as mãos vazias para pegar o sushi e leve-o ao balcão de entrega.`);
+    const sequence = element('p', `Ingredientes necessários: ${recipeIngredients(recipe)}`); sequence.className = 'recipe-book-ingredients';
+    const steps = doc.createElement('ul');
+    for (const state of new Set(recipe.sequence)) steps.append(element('li', `${PREPARED_NAMES[state]}: ${PREPARATION_HELP[state]}`));
+    const assembly = element('p', 'Adicione os ingredientes em qualquer ordem! Escolha a receita no painel da bancada antes de começar, especialmente para distinguir nigiri de maki. Use E (P1) ou P (P2) para adicionar cada ingrediente preparado. Você pode transportar o prato incompleto e continuar em outra bancada. Ao terminar, retire o sushi com as mãos vazias e leve-o ao balcão de entrega.');
     const nav = doc.createElement('nav'); nav.setAttribute('aria-label', 'Páginas das receitas');
     const changePage = (offset, action) => {
       this.page += offset; this.render();

@@ -168,6 +168,7 @@ canvas {
 .assembly-panel[hidden], .assembly-panel [hidden] { display: none; }
 .assembly-panel strong { font-size: 14px; }
 .assembly-panel p { margin: 5px 0; }
+.assembly-panel select { pointer-events: auto; box-sizing: border-box; max-width: 100%; padding: 5px; border: 1px solid #dfa9c3; border-radius: 8px; background: #fff; color: inherit; font: inherit; }
 .assembly-panel progress {
   display: block;
   width: 100%;
@@ -273,7 +274,7 @@ canvas {
 .recipe-book .order-sushi { width: max-content; margin: 20px auto; transform: scale(1.8); }
 .recipe-book .recipe-book-close { float: right; margin: -10px -10px 6px 8px; }
 .recipe-book-ingredients { text-align: center; padding: 10px; border-radius: 12px; background: white; border: 1px dashed #dfa9c3; }
-.recipe-book ol { padding-left: 22px; }
+.recipe-book ul { padding-left: 22px; }
 .recipe-book li { margin: 8px 0; }
 .recipe-book nav { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 20px; }
 .recipe-book button:disabled { opacity: .45; cursor: default; }
@@ -321,13 +322,13 @@ canvas {
 [data-paused="true"] .order-card, [data-paused="true"] .order-card * { animation-play-state: paused !important; transition: none !important; }
 
 /* Sele??o de modo e identifica??o independente dos chefs. */
-.mode-menu { position: absolute; inset: 0; display: grid; place-items: center; overflow: auto; padding: 24px; background: radial-gradient(circle at 15% 20%, #fff9ed 0, transparent 42%), radial-gradient(circle at 90% 80%, #dceff9 0, transparent 40%), #fbe1ed; color: #754b62; font: 16px/1.5 system-ui, sans-serif; }
-.mode-panel { width: min(820px, 100%); text-align: center; padding: clamp(20px, 4vw, 48px); border: 2px solid #fff; border-radius: 36px; background: #fff9fcdf; box-shadow: 0 18px 60px #a5577a20; }
+.mode-menu { position: absolute; inset: 0; display: grid; place-items: center; overflow: auto; padding: 24px; background: #fff; color: #754b62; font: 16px/1.5 system-ui, sans-serif; }
+.mode-panel { width: min(820px, 100%); text-align: center; padding: clamp(20px, 4vw, 48px); border: 2px solid #fff; border-radius: 36px; background: #fff; box-shadow: 0 18px 60px #a5577a20; }
+.mode-brand { background: #fff; }
 .mode-decoration { font-size: 38px; letter-spacing: 12px; }
-.mode-eyebrow { text-transform: uppercase; letter-spacing: .2em; font-size: 11px; }
 .mode-panel h1 { color: #d75692; font-size: clamp(30px, 6vw, 52px); margin: 8px 0; letter-spacing: .035em; font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif; text-shadow: 0 2px 0 #fff, 0 4px 0 #f6cadd; }
 .restaurant-brand { color: #c56494; font: bold 18px "Arial Rounded MT Bold", "Trebuchet MS", sans-serif; letter-spacing: .025em; }
-.mode-subtitle { font-size: 20px; }
+.mode-subtitle { font-size: 20px; margin: 12px 0 16px; }
 .mode-options { display: grid; grid-template-columns: minmax(0, 280px); justify-content: center; gap: 15px; margin: 18px 0; }
 .mode-options button { position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 100%; height: 56px; padding: 0 30px; border: 2px solid #eaa1c1; border-radius: 999px; color: #923958; background: #ffdaea; cursor: pointer; font: 700 15px/1.2 "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif; box-shadow: 0 4px 12px #b75b8220, inset 0 1px 0 #ffffffb3; transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease, background-color 200ms ease; }
 .mode-options button::before, .mode-options button::after { content: ''; position: absolute; top: 50%; width: 10px; height: 10px; background: #dc8aab; clip-path: polygon(50% 20%, 65% 5%, 85% 5%, 100% 25%, 100% 45%, 50% 95%, 0 45%, 0 25%, 15% 5%, 35% 5%); transform: translateY(-50%); pointer-events: none; }
@@ -395,7 +396,6 @@ html[data-menu-decorations="false"] .mode-options button::after { display: none;
   .mode-menu:has(.custom-asset-menuLogo) { box-sizing: border-box; padding: 12px; }
   .mode-panel:has(.custom-asset-menuLogo) { padding-block: 12px; }
   .mode-panel:has(.custom-asset-menuLogo) .mode-decoration { font-size: 25px; line-height: 1; }
-  .mode-panel:has(.custom-asset-menuLogo) .mode-eyebrow { margin-block: 4px; }
   .mode-panel:has(.custom-asset-menuLogo) h1 { margin-block: 4px; }
   .mode-panel:has(.custom-asset-menuLogo) .mode-subtitle { margin-block: 6px; font-size: 18px; }
   .mode-panel:has(.custom-asset-menuLogo) .mode-options { margin-block: 12px; }
@@ -404,7 +404,6 @@ html[data-menu-decorations="false"] .mode-options button::after { display: none;
 @media (max-height: 700px) {
   .mode-panel:has(.custom-asset-menuLogo) { padding-block: 8px; }
   .mode-panel:has(.custom-asset-menuLogo) .mode-decoration { display: none; }
-  .mode-panel:has(.custom-asset-menuLogo) .mode-eyebrow { margin-block: 2px; }
   .mode-panel:has(.custom-asset-menuLogo) .mode-subtitle { margin-block: 4px; line-height: 1.3; }
   .mode-panel:has(.custom-asset-menuLogo) .mode-options { margin-block: 8px; }
   .mode-panel:has(.custom-asset-menuLogo) .mode-footer { margin-block: 4px; font-size: 11px; line-height: 1.3; }

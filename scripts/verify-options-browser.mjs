@@ -4,6 +4,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'vite';
+import { verifyTransportBrowser } from './transport-browser-scenario.mjs';
+import { verifyFreeAssemblyBrowser } from './free-assembly-browser-scenario.mjs';
+import { verifyDeliveryAppearanceBrowser } from './delivery-appearance-browser-scenario.mjs';
 
 // Usa apenas o PNG original do menu como fixture em memória, sem criar outra logo.
 const fixture = await readFile('public/assets/logos-personalizadas/logo-menu.png');
@@ -180,6 +183,9 @@ try {
     assert.equal(await evaluate('__testGame.controlSettings.movementMode'), 'camera');
     await evaluate('__testGame.session.play()');
     assert.equal(await evaluate('__testGame.session.mode'), 'PLAYING');
+    await verifyDeliveryAppearanceBrowser({ evaluate, command, mode });
+    if (mode === 'coop') await verifyTransportBrowser({ evaluate, command });
+    if (mode === 'coop') await verifyFreeAssemblyBrowser({ evaluate, command });
     await evaluate('__testGame.onMainMenu(); globalThis.__testGame = null');
     await waitFor('Boolean(document.querySelector("[data-action=options]"))');
   }

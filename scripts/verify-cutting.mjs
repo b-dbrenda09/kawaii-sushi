@@ -77,8 +77,7 @@ approach('cutting'); assert.equal(ui.action, 'Bancada vazia');
 assert.equal(act('cutting', 'unavailable').success, false);
 assert.throws(() => cutting.transition('READY'));
 assert.throws(() => cutting.transition('LOADED'));
-for (const [type, state] of [['rice', 'rice_raw'], ['rice', 'rice_cooked'], ['nori', 'nori_sheet'],
-  ['salmon', 'salmon_cut'], ['cucumber', 'cucumber_cut']]) {
+for (const [type, state] of [['rice', 'rice_raw'], ['rice', 'rice_cooked'], ['nori', 'nori_sheet']]) {
   const item = factory.create(type, state); carry.attach(item);
   assert.equal(act('cutting', 'unavailable').success, false);
   assert.equal(ui.action, 'Ingrediente não pode ser cortado');
@@ -104,14 +103,16 @@ for (const [box, type, raw, prepared] of [
   assert.equal(ingredient.model.parent, cutting.boardAnchor);
   assert.equal(ingredient.location, 'cutting');
   assert.equal(ingredient.ownerId, 'cutting');
-  assert.equal(ui.action, 'Cortar');
+  assert.equal(ui.action, 'Toque para pegar • segure para cortar');
   for (let i = 0; i < 10; i++) { key('keydown', 'KeyE', true); frame(0.05); }
   assert.equal(cutting.cuts, 0, 'A tecla que coloca o ingrediente não começa o corte.');
   assert.equal(player.movementLocked, false);
   key('keyup');
   const itemBounds = new Box3().setFromObject(ingredient.model);
   assert.ok(itemBounds.min.y > new Box3().setFromObject(board).max.y);
-  assert.equal(cutting.retrieve().success, false);
+  assert.equal(cutting.retrieve().success, true);
+  assert.equal(carry.carriedIngredient, ingredient);
+  assert.equal(carry.interact(station).success, true);
   player.group.rotation.y = -Math.PI / 2; // Começa olhando para longe para verificar a preparação do golpe.
   const hitsBefore = sounds.hits;
   const completionsBefore = sounds.completions;
@@ -197,7 +198,9 @@ for (const [box, type, raw, prepared] of [
   assert.equal(cutting.progress, 0);
   assert.equal(cutting.boardAnchor.children.length, 0);
   assert.equal(cutting.retrieve().success, false);
-  assert.equal(act('cutting', 'unavailable').success, false, 'Preparados não podem ser cortados outra vez.');
+  assert.equal(act('cutting', 'load-cutting').success, true, 'Preparados podem ser apoiados sem cortar outra vez.');
+  assert.equal(cutting.state, 'READY');
+  act('cutting', 'take-cut-ingredient');
   act('assembly', 'place'); act('assembly', 'retrieve');
   assert.equal(carry.carriedIngredient.state, prepared);
   assert.equal(carry.carriedIngredient.instanceId, instanceId);

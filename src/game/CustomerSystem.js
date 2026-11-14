@@ -113,7 +113,11 @@ export class CustomerSystem {
     slot.customerId = customer.id; // Reserva antes de começar a caminhar.
     this.customers.set(customer.id, customer); this.scene.add(customer.model);
     this.transitId = customer.id;
-    customer.follow(this.route.toCounter(slot), S.WALKING_TO_COUNTER);
+    // Budget for the full routed distance, plus door opening and turning in place.
+    // The transit reservation is acquired before spawning, so no visible guest queues here.
+    customer.follow(this.route.toCounter(slot), S.WALKING_TO_COUNTER, {
+      movementDuration: Math.min(BALANCE.customers.arrivalTarget, BALANCE.customers.arrivalLimit) - BALANCE.customers.arrivalTurnAllowance,
+    });
     return customer;
   }
 

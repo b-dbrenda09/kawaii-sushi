@@ -17,6 +17,8 @@ export class AssemblySystem {
     this.state = 'EMPTY';
     this.ingredients = [];
     this.dish = null;
+    this.plate = null;
+    this.targetRecipeId = null;
     this.cancelElapsed = 0;
     this.cancelEligible = false;
     this.completionRemaining = 0;
@@ -32,14 +34,23 @@ export class AssemblySystem {
   }
 
   get sequence() { return this.ingredients.map((ingredient) => ingredient.state); }
-  get analysis() { return this.recipes.analyze(this.sequence); }
+  get analysis() { return this.recipes.analyze(this.sequence, this.targetRecipeId); }
   get cancelProgress() { return this.cancelElapsed / this.cancelDuration; }
+
+  selectRecipe(recipeId) {
+    if (this.disposed || this.station.fireState === 'burning' || this.station.interactingPlayer
+      || this.state !== 'EMPTY' || this.ingredients.length || this.station.storedIngredient
+      || (recipeId !== null && !this.recipes.recipes.some(recipe => recipe.id === recipeId))) return false;
+    this.targetRecipeId = recipeId;
+    if (this.plate) this.plate.targetRecipeId = recipeId;
+    return true;
+  }
 
   refreshPreview() {
     this.effects.clear();
     this.preview?.removeFromParent();
     this.preview?.clear();
-    this.preview = this.factory.preview(this.sequence);
+    this.preview = this.factory.preview(this.sequence, { assembly: true });
     this.anchor.add(this.preview);
     this.fitVisual(this.preview);
   }
@@ -70,10 +81,12 @@ export class AssemblySystem {
 
   describe(carrySystem = this.carrySystem) {
     const item = carrySystem.carriedIngredient;
-    if (this.state === 'READY') return { action: item ? 'Mãos ocupadas' : 'Pegar sushi', available: !item };
-    if (this.state === 'EMPTY' && item?.kind === 'sushi') return { action: 'Colocar sushi', available: true };
-    if (item && !this.validNext(item)) return { action: 'Ingrediente incorreto', available: false };
-    if (!item) return { action: this.state === 'EMPTY' ? 'Ilha de montagem livre' : 'Adicionar ingredientes • segure R para cancelar', available: false };
+    if (this.station.storedIngredient) return { action: item ? 'Superfície ocupada' : 'Pegar ingrediente', available: !item };
+    if (this.state === 'READY') return { action: item ? 'Este prato já está pronto!' : 'Pegar sushi', available: !item };
+    if (this.state === 'EMPTY' && !this.plate && item?.kind === 'preparation') return { action: 'Colocar prato e continuar montagem', available: carrySystem.fits(item, this.station) };
+    if (this.state === 'EMPTY' && !this.plate && item?.kind === 'sushi') return { action: 'Colocar sushi', available: true };
+    if (item && !this.validNext(item)) return { action: this.state === 'EMPTY' && !this.plate && !this.targetRecipeId && !item.kind ? 'Colocar ingrediente' : 'Ingrediente incorreto', available: this.state === 'EMPTY' && !this.plate && !this.targetRecipeId && !item.kind && carrySystem.fits(item, this.station) };
+    if (!item) return { action: this.state === 'EMPTY' ? 'Pegar prato vazio' : 'Pegar preparação • segure R para cancelar', available: true };
     return { action: this.state === 'EMPTY' ? 'Iniciar montagem' : 'Adicionar ingrediente', available: true };
   }
 
@@ -86,30 +99,63 @@ export class AssemblySystem {
     this.carrySystem = carrySystem;
     if (this.disposed) return this.result(false, 'unavailable', 'Montagem indisponível.');
     const carried = this.carrySystem.carriedIngredient;
+    if (this.station.storedIngredient) {
+      const result = carried ? this.result(false, 'unavailable', 'Superfície ocupada.') : carrySystem.retrieve(this.station);
+      if (result.success) this.preview.visible = true;
+      return result;
+    }
+    if (!carried && this.state !== 'READY') return this.takePreparation();
+    if (this.state === 'EMPTY' && carried?.kind === 'preparation' && !this.plate) {
+      if (!carrySystem.fits(carried, this.station)) return this.result(false, 'unavailable', 'Não há espaço para o prato.');
+      this.plate = carrySystem.transferTo(this.anchor, { location: 'assembly', ownerId: this.station.id });
+      this.targetRecipeId = carried.targetRecipeId;
+      this.ingredients = carried.ingredients;
+      for (const ingredient of this.ingredients) {
+        this.contents.add(ingredient.model); ingredient.location = 'assembly'; ingredient.ownerId = this.station.id;
+      }
+      this.plate.model.visible = false;
+      this.state = this.ingredients.length ? 'ASSEMBLING' : 'EMPTY';
+      this.resetCancellation(); this.refreshPreview();
+      return this.result(true, 'place-preparation', 'Prato colocado. Continue a montagem.');
+    }
     if (this.state === 'READY') {
-      if (carried) return this.result(false, 'unavailable', 'Mãos ocupadas');
+      if (carried) return this.result(false, 'unavailable', 'Este prato já está pronto!');
       this.effects.clear();
       const dish = this.dish;
       this.dish = null;
       dish.model.scale.setScalar(1);
       this.carrySystem.attach(dish);
       this.state = 'EMPTY';
+      this.targetRecipeId = null;
       this.preview.visible = true;
       this.completionRemaining = 0;
       return this.result(true, 'take-sushi', `Carregando: ${dish.name}.`);
     }
-    if (this.state === 'EMPTY' && carried?.kind === 'sushi') {
+    if (this.state === 'EMPTY' && !this.plate && carried?.kind === 'sushi') {
       this.dish = this.carrySystem.transferTo(this.anchor, { location: 'surface', ownerId: this.station.id, position: [0, 0.005, 0] });
       this.fitVisual(this.dish.model);
       this.preview.visible = false;
       this.state = 'READY';
       return this.result(true, 'place-sushi', 'Sushi colocado na ilha.');
     }
-    if (!this.validNext(carried)) return this.result(false, 'unavailable', carried ? 'Ingrediente incorreto!' : 'Pegue um dos ingredientes indicados.');
-    const next = this.recipes.analyze([...this.sequence, carried.state]);
-    const dish = next.complete ? this.factory.create(next.complete) : null;
+    if (!this.validNext(carried)) {
+      if (this.state === 'EMPTY' && !this.plate && !this.targetRecipeId && carried && !carried.kind) {
+        const result = carrySystem.place(this.station);
+        if (result.success) this.preview.visible = false;
+        return result;
+      }
+      return this.result(false, 'unavailable', carried ? 'Ingrediente incorreto!' : 'Pegue um dos ingredientes indicados.');
+    }
+    const next = this.recipes.analyze([...this.sequence, carried.state], this.targetRecipeId);
+    // Allocate before consuming the held ingredient; a failed allocation loses nothing.
+    let dish = next.complete && !this.plate ? this.factory.create(next.complete) : null;
     this.ingredients.push(this.carrySystem.transferTo(this.contents, { location: 'assembly', ownerId: this.station.id }));
     this.resetCancellation();
+    if (next.complete && this.plate) {
+      dish = this.factory.completePreparation(this.plate, next.complete);
+      this.plate = null;
+      dish.model.visible = true;
+    }
     if (dish) {
       for (const ingredient of this.ingredients) ingredient.dispose();
       this.ingredients = [];
@@ -132,6 +178,19 @@ export class AssemblySystem {
     this.effects.place(carried.state);
     this.carrySystem.player.gesture?.(.65, { duration: .55, kind: 'assembly' });
     return this.result(true, 'add-ingredient', 'Ingrediente adicionado à montagem.');
+  }
+
+  takePreparation() {
+    this.effects.clear();
+    const plate = this.plate ?? this.factory.createPreparation(this.ingredients, this.recipes, this.targetRecipeId);
+    plate.ingredients = this.ingredients;
+    plate.refresh();
+    this.carrySystem.attach(plate);
+    this.plate = null; this.ingredients = []; this.state = 'EMPTY';
+    this.targetRecipeId = null;
+    this.resetCancellation(); this.completionRemaining = 0;
+    this.refreshPreview();
+    return this.result(true, 'take-preparation', plate.ingredients.length ? 'Carregando preparação com todos os ingredientes.' : 'Carregando prato vazio.');
   }
 
   animateCompletion(dt) {
@@ -162,6 +221,8 @@ export class AssemblySystem {
     if (this.cancelElapsed + 1e-9 < this.cancelDuration) return;
     for (const ingredient of this.ingredients) ingredient.dispose();
     this.ingredients = [];
+    this.plate?.dispose(); this.plate = null;
+    this.targetRecipeId = null;
     this.state = 'EMPTY';
     this.resetCancellation();
     this.refreshPreview();
@@ -174,6 +235,7 @@ export class AssemblySystem {
     this.ingredients.forEach((ingredient) => ingredient.dispose());
     this.ingredients = [];
     this.dish?.dispose();
+    this.plate?.dispose(); this.plate = null;
     this.dish = null;
     this.preview.removeFromParent();
     this.preview.clear();

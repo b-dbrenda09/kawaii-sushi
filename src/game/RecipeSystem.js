@@ -1,7 +1,7 @@
 export const RECIPES = Object.freeze([
   { id: 'salmon_nigiri', name: 'Nigiri de salmão', model: 'nigiri', sequence: ['rice_cooked', 'salmon_cut'] },
   { id: 'salmon_maki', name: 'Maki de salmão', model: 'maki', sequence: ['nori_sheet', 'rice_cooked', 'salmon_cut'] },
-  { id: 'cucumber_uramaki', name: 'Uramaki de pepino', model: 'uramaki', orderIndependent: true, sequence: ['rice_cooked', 'nori_sheet', 'cucumber_cut'] },
+  { id: 'cucumber_uramaki', name: 'Uramaki de pepino', model: 'uramaki', sequence: ['rice_cooked', 'nori_sheet', 'cucumber_cut'] },
 ].map((recipe) => Object.freeze({ ...recipe, sequence: Object.freeze(recipe.sequence) })));
 
 export const PREPARED_NAMES = Object.freeze({ rice_cooked: 'arroz cozido', salmon_cut: 'salmão cortado',
@@ -14,11 +14,12 @@ export class RecipeSystem {
     this.recipes = recipes.map((recipe) => Object.freeze({ ...recipe, sequence: Object.freeze([...recipe.sequence]) }));
   }
 
-  analyze(sequence) {
+  // `sequence` remains the recipe data format; matching treats it as a multiset.
+  analyze(sequence, recipeId = null) {
     const remainingByRecipe = new Map();
     const possible = this.recipes.filter((recipe) => {
+      if (recipeId !== null && recipe.id !== recipeId) return false;
       if (sequence.length > recipe.sequence.length) return false;
-      if (!recipe.orderIndependent) return sequence.every((state, index) => state === recipe.sequence[index]);
       // Remove uma ocorrência por ingrediente: duplicados nunca substituem os faltantes.
       const remaining = [...recipe.sequence];
       for (const state of sequence) {
@@ -29,9 +30,9 @@ export class RecipeSystem {
       remainingByRecipe.set(recipe, remaining);
       return true;
     });
-    const complete = possible.length === 1 && possible[0].sequence.length === sequence.length ? possible[0] : null;
-    const next = [...new Set(possible.flatMap((recipe) => recipe.orderIndependent
-      ? remainingByRecipe.get(recipe) : [recipe.sequence[sequence.length]]).filter(Boolean))];
-    return { possible, complete, next };
+    const next = [...new Set(possible.flatMap(recipe => remainingByRecipe.get(recipe)))];
+    const matches = possible.filter(recipe => remainingByRecipe.get(recipe).length === 0);
+    const complete = matches.length === 1 ? matches[0] : null;
+    return { possible, complete, next, matches };
   }
 }

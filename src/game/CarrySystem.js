@@ -17,14 +17,18 @@ export class CarrySystem {
     const carried = this.carriedIngredient;
     const source = station.ingredientSource;
     if (source) {
-      if (carried?.kind === 'sushi') return { action: 'Mãos ocupadas', available: false };
+      if (carried?.kind) return { action: 'Mãos ocupadas', available: false };
       const label = INGREDIENT_TYPES[source.ingredient].label;
       return { action: `${!carried ? 'Pegar' : carried.originBoxId === station.id ? 'Devolver' : 'Trocar por'} ${label}`, available: true };
     }
     if (station.storage) {
+      if (station.storedIngredient?.kind === 'sushi' && carried) return { action: 'Este prato já está pronto!', available: false };
+      if (station.storedIngredient?.kind === 'preparation' && carried) return {
+        action: station.storedIngredient.accepts(carried) ? 'Adicionar ingrediente ao prato' : 'Ingrediente incorreto',
+        available: station.storedIngredient.accepts(carried) };
       if (carried && station.storedIngredient) return { action: 'Superfície ocupada', available: false };
-      if (carried) return { action: 'Colocar ingrediente', available: this.fits(carried, station) };
-      return { action: station.storedIngredient ? 'Pegar ingrediente' : 'Superfície livre', available: Boolean(station.storedIngredient) };
+      if (carried) return { action: carried.kind ? 'Colocar prato' : 'Colocar ingrediente', available: this.fits(carried, station) };
+      return { action: station.storedIngredient?.kind ? 'Pegar prato' : station.storedIngredient ? 'Pegar ingrediente' : 'Superfície livre', available: Boolean(station.storedIngredient) };
     }
     if (station.id === 'trash') return { action: carried ? 'Descartar' : 'Nada para descartar', available: Boolean(carried) };
     return { action: station.id === 'riceCooker' ? 'Cozimento indisponível' : 'Entrega indisponível', available: false };
@@ -35,12 +39,14 @@ export class CarrySystem {
   }
 
   attach(ingredient) {
+    if (ingredient.location === 'carried' && ingredient.ownerId !== (this.player.id ?? 'player')) throw new Error('Objeto já carregado por outro jogador.');
     if (this.carriedTool || ingredient.disposed || (this.carriedIngredient && !this.carriedIngredient.disposed && this.carriedIngredient !== ingredient)) {
       throw new Error('Não é possível carregar dois ingredientes ou recuperar um objeto removido.');
     }
     ingredient.model.removeFromParent();
     ingredient.model.position.set(0, 0, 0);
     ingredient.model.rotation.set(0, 0, 0);
+    ingredient.model.scale.setScalar(1);
     ingredient.model.visible = true;
     this.player.carryAnchor.position.z = Math.max(0.67, 0.44 + ingredient.dimensions.depth / (2 * this.player.modelScale));
     this.player.carryAnchor.add(ingredient.model);
@@ -71,7 +77,7 @@ export class CarrySystem {
 
   takeFromBox(station) {
     if (this.carriedTool) return this.result(false, 'unavailable', 'Mãos ocupadas com o extintor.');
-    if (this.carriedIngredient?.kind === 'sushi') return this.result(false, 'unavailable', 'Apoie ou descarte o sushi antes de pegar ingredientes.');
+    if (this.carriedIngredient?.kind) return this.result(false, 'unavailable', 'Apoie ou descarte o prato antes de pegar ingredientes.');
     if (this.carriedIngredient?.originBoxId === station.id) return this.returnIngredient();
     // Cria primeiro: se a fábrica falhar, o ingrediente atual continua intacto.
     const next = this.factory.create(station.ingredientSource.ingredient);
@@ -92,6 +98,13 @@ export class CarrySystem {
   place(station) {
     if (!this.carriedIngredient) return this.result(false, 'unavailable', 'Pegue um ingrediente para usar esta superfície.');
     if (!station.storage) return this.result(false, 'unavailable', 'Esta estação não aceita armazenamento.');
+    const plate = station.storedIngredient;
+    if (plate?.kind === 'sushi') return this.result(false, 'unavailable', 'Este prato já está pronto!');
+    if (plate?.kind === 'preparation' && plate.accepts(this.carriedIngredient)) {
+      const item = this.transferTo(plate.contents, { location: 'preparation', ownerId: plate.instanceId });
+      plate.addIngredient(item);
+      return this.result(true, plate.kind === 'sushi' ? 'finish-sushi' : 'add-ingredient', plate.kind === 'sushi' ? `${plate.name} pronto!` : 'Ingrediente adicionado ao prato.');
+    }
     if (station.storedIngredient) return this.result(false, 'unavailable', 'Superfície ocupada. Libere as mãos para pegar o ingrediente.');
     if (!this.fits(this.carriedIngredient, station)) return this.result(false, 'unavailable', 'Não há espaço para este ingrediente.');
     const ingredient = this.transferTo(station.storage.anchor, { location: 'surface', ownerId: station.id, position: [0, 0.005, 0] });
@@ -103,8 +116,8 @@ export class CarrySystem {
     if (this.carriedIngredient || this.carriedTool) return this.result(false, 'unavailable', 'Suas mãos já estão ocupadas.');
     if (!station.storage || !station.storedIngredient) return this.result(false, 'unavailable', 'A superfície está livre.');
     const ingredient = station.storedIngredient;
-    station.storedIngredient = null;
     this.attach(ingredient);
+    station.storedIngredient = null;
     return this.result(true, 'retrieve', `Carregando: ${ingredient.name}.`);
   }
 
@@ -116,13 +129,13 @@ export class CarrySystem {
     return this.result(true, 'discard', 'Ingrediente descartado.');
   }
 
-  interact(station) {
+  interact(station, options = {}) {
     if (this.carriedIngredient?.deliveryReservation) return this.result(false, 'unavailable', 'Prato reservado para o desafio da entrega.');
     if (station.fireSystem?.isBurning(station)) return this.result(false, 'burning', this.carriedTool ? 'Segure sua tecla de interação para apagar o fogo.' : 'Estação em chamas!');
     if (this.carriedTool && station.type !== 'extinguisher') return this.result(false, 'unavailable', 'Deixe o extintor no chão ou no suporte.');
     if (this.disposed || this.stations.get(station.id) !== station || this.player.movementLocked || this.player.state === 'dashing'
       || this.player.dashRemaining > 0) return this.result(false, 'unavailable', 'Interação indisponível.');
-    if (station.behavior) return station.behavior.interact(this, station);
+    if (station.behavior) return station.behavior.interact(this, options);
     if (station.ingredientSource) return this.takeFromBox(station);
     if (station.id === 'trash') return this.discard();
     if (station.storage) return this.carriedIngredient ? this.place(station) : this.retrieve(station);

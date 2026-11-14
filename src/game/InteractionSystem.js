@@ -79,7 +79,7 @@ export class InteractionSystem {
     return { entry, distance, alignment, available };
   }
 
-  update(deltaTime, player, { interactPressed = false, disabled = false, preferredStation = null } = {}) {
+  update(deltaTime, player, { interactPressed = false, interactHeld, interactionEpoch, disabled = false, preferredStation = null } = {}) {
     if (this.disposed) return null;
     deltaTime = Number.isFinite(deltaTime) ? Math.max(0, Math.min(deltaTime, 0.05)) : 0;
     if (disabled || player.state === 'dashing' || player.dashRemaining > 0) {
@@ -107,12 +107,30 @@ export class InteractionSystem {
     if (current && best && current.available === best.available && current.distance <= best.distance + this.switchMargin) best = current;
     this.active = best?.entry ?? null;
     if (this.active && this.carrySystem) Object.assign(this.active, this.carrySystem.describe(this.active.station));
+    let cuttingAction;
+    if (this.pendingCut && (interactionEpoch !== this.pendingCut.epoch || this.activeStation !== this.pendingCut.station
+      || this.activeStation.storedIngredient !== this.pendingCut.item
+      || this.activeStation.behavior?.state !== 'LOADED' || this.carrySystem.carriedIngredient
+      || this.carrySystem.carriedTool || player.movementLocked)) this.pendingCut = null;
+    // On a loaded board the short press picks up; a deliberate hold commits one stroke.
+    if (interactHeld !== undefined && interactPressed && this.activeStation?.behavior?.state === 'LOADED'
+      && this.activeStation.type === 'cutting' && !this.carrySystem.carriedIngredient && !this.carrySystem.carriedTool) {
+      this.pendingCut = { station: this.activeStation, item: this.activeStation.storedIngredient, elapsed: 0, epoch: interactionEpoch };
+      interactPressed = false;
+    }
+    if (this.pendingCut) {
+      this.pendingCut.elapsed += deltaTime;
+      if (!interactHeld || this.pendingCut.elapsed >= .25) {
+        cuttingAction = interactHeld ? 'cut' : 'retrieve';
+        interactPressed = true; this.pendingCut = null;
+      }
+    }
     let event = null;
     if (interactPressed && this.active) {
       event = { playerId: player.id ?? 'player', station: this.active.station, stationId: this.active.station.id, action: this.active.action };
       const result = this.fireSystem?.isBurning(this.active.station) && !this.carrySystem?.carriedTool
         ? { success: false, kind: 'burning', message: 'Estação em chamas!' }
-        : this.carrySystem?.interact(this.active.station);
+        : this.carrySystem?.interact(this.active.station, { cuttingAction });
       if (result) Object.assign(event, result);
       this.message = result?.message ?? this.active.confirmation ?? 'Estação selecionada';
       this.feedbackRemaining = this.feedbackDuration;
@@ -126,6 +144,7 @@ export class InteractionSystem {
   }
 
   reset() {
+    this.pendingCut = null;
     this.active = null;
     this.message = '';
     this.feedbackRemaining = 0;

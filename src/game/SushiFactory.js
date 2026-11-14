@@ -1,11 +1,13 @@
 import { Box3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RecipeSystem } from './RecipeSystem.js';
 
 // Geometrias e materiais pertencem à fábrica; pratos individuais só removem seus grupos.
 export class SushiFactory {
   constructor() {
     this.geometries = new Map();
-    this.materials = Object.fromEntries(Object.entries({ plate: '#fff0dd', rim: '#edb3c0', rice: '#fffdf0',
+    this.materials = Object.fromEntries(Object.entries({ plate: '#FF69B4', rim: '#FF69B4', rice: '#fffdf0',
+      assemblyPlate: '#FFB6D5',
       salmon: '#f49b83', stripe: '#ffdac4', nori: '#294d3b', cucumber: '#82bd62', bamboo: '#dfbc83', blade: '#dbe5e9' })
       .map(([name, color]) => [name, new MeshStandardMaterial({ color, roughness: 0.8 })]));
     this.sphere = new SphereGeometry(1, 12, 8);
@@ -31,16 +33,16 @@ export class SushiFactory {
     return this.mesh(parent, this.geometries.get(key), material, position, [1, 1, 1]);
   }
 
-  plate() {
+  plate({ assembly = false } = {}) {
     const root = new Group();
     root.name = 'sushi-plate';
-    this.box(root, 'rim', [0.84, 0.055, 0.56], [0, 0.0275, 0]);
-    this.box(root, 'plate', [0.77, 0.025, 0.49], [0, 0.058, 0]);
+    this.box(root, assembly ? 'assemblyPlate' : 'rim', [0.84, 0.055, 0.56], [0, 0.0275, 0]);
+    this.box(root, assembly ? 'assemblyPlate' : 'plate', [0.77, 0.025, 0.49], [0, 0.058, 0]);
     return root;
   }
 
-  preview(sequence) {
-    const root = this.plate();
+  preview(sequence, { assembly = false } = {}) {
+    const root = this.plate({ assembly });
     root.userData.sequence = [...sequence];
     if (!sequence.length) return root;
     const noriFirst = sequence[0] === 'nori_sheet';
@@ -110,6 +112,60 @@ export class SushiFactory {
     model.name = dish.instanceId;
     Object.assign(model.userData, { instanceId: dish.instanceId, recipeId: recipe.id });
     this.instances.add(dish);
+    return dish;
+  }
+
+  createPreparation(ingredients = [], recipes = new RecipeSystem(), targetRecipeId = null) {
+    if (this.disposed) throw new Error('Fábrica de sushi removida.');
+    const factory = this, model = new Group(), contents = new Group();
+    contents.visible = false;
+    const dish = {
+      kind: 'preparation', type: 'preparation', name: 'Prato vazio', state: 'preparation',
+      completionState: 'ASSEMBLING', instanceId: `preparation-${this.nextId++}`,
+      ingredients: [...ingredients], model, contents, location: 'unassigned', ownerId: null, disposed: false,
+      targetRecipeId,
+      dimensions: { width: .84, depth: .56 },
+      get sequence() { return this.ingredients.map(item => item.state); },
+      accepts(item) { return Boolean(this.kind === 'preparation' && item && !item.disposed && !item.kind && recipes.analyze(this.sequence, this.targetRecipeId).next.includes(item.state)); },
+      refresh() {
+        model.clear();
+        const visual = factory.preview(this.sequence);
+        model.add(...visual.children, contents);
+        model.userData.sequence = [...this.sequence];
+        this.name = this.ingredients.length ? 'Prato em preparação' : 'Prato vazio';
+        for (const item of this.ingredients) {
+          contents.add(item.model); item.location = 'preparation'; item.ownerId = this.instanceId;
+        }
+      },
+      addIngredient(item) {
+        if (this.disposed || this.kind !== 'preparation' || !this.accepts(item)) return false;
+        this.ingredients.push(item);
+        const recipe = recipes.analyze(this.sequence, this.targetRecipeId).complete;
+        if (recipe) factory.completePreparation(this, recipe);
+        else this.refresh();
+        return true;
+      },
+      dispose() {
+        if (this.disposed) return;
+        this.ingredients.forEach(item => item.dispose()); this.ingredients = [];
+        model.removeFromParent(); model.clear(); contents.clear();
+        this.disposed = true; this.location = 'removed'; this.ownerId = null;
+        factory.instances.delete(this);
+      },
+    };
+    model.name = dish.instanceId; model.userData.instanceId = dish.instanceId;
+    dish.refresh(); this.instances.add(dish);
+    return dish;
+  }
+
+  completePreparation(dish, recipe) {
+    if (dish.disposed || !this.instances.has(dish) || dish.kind !== 'preparation') throw new Error('Preparação inválida.');
+    const visual = this.finalModel(recipe);
+    dish.ingredients.forEach(item => item.dispose()); dish.ingredients = [];
+    dish.model.clear(); dish.model.add(...visual.children);
+    Object.assign(dish, { kind: 'sushi', type: 'sushi', name: recipe.name, recipeName: recipe.name,
+      recipeId: recipe.id, state: 'sushi_ready', completionState: 'READY' });
+    dish.model.userData.recipeId = recipe.id;
     return dish;
   }
 

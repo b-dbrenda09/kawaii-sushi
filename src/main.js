@@ -18,7 +18,7 @@ function showMenu() {
   menuSound = new SoundSystem();
   container.replaceChildren();
   const menu = document.createElement('main'); menu.className = 'mode-menu';
-  menu.innerHTML = '<section class="mode-panel"><div class="mode-decoration" aria-hidden="true">🎀 🍣 🎀</div><p class="mode-eyebrow">Uma cozinha, muitas delícias</p><h1 class="mode-brand"><span>HELLO KITTY SUSHI</span></h1><p class="mode-subtitle">Escolha como deseja jogar!</p><div class="mode-options"><button type="button" data-mode="solo"><strong>JOGAR SOZINHO</strong></button><button type="button" data-mode="coop"><strong>JOGAR EM DUPLA</strong></button><button type="button" data-action="options" aria-expanded="false" aria-controls="menu-options"><strong>OPÇÕES</strong></button></div><p class="mode-footer">5 minutos para preparar sushis com carinho.<br>Esc pausa · Livro de receitas disponível na cozinha</p></section>';
+  menu.innerHTML = '<section class="mode-panel"><div class="mode-decoration" aria-hidden="true">🎀 🍣 🎀</div><h1 class="mode-brand"><span>HELLO KITTY SUSHI</span></h1><p class="mode-subtitle">Escolha como deseja jogar!</p><div class="mode-options"><button type="button" data-mode="solo"><strong>JOGAR SOZINHO</strong></button><button type="button" data-mode="coop"><strong>JOGAR EM DUPLA</strong></button><button type="button" data-action="options" aria-expanded="false" aria-controls="menu-options"><strong>OPÇÕES</strong></button></div><p class="mode-footer">5 minutos para preparar sushis com carinho.<br>Esc pausa · Livro de receitas disponível na cozinha</p></section>';
   menu.querySelectorAll('[data-mode]').forEach(button => button.onclick = () => {
     optionsUI?.dispose(); menuSound?.dispose();
     menu.remove();

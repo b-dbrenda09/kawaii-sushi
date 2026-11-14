@@ -2,7 +2,7 @@ import { Group, Vector3 } from 'three';
 
 export const CUTTING_STATES = Object.freeze({ EMPTY: 'EMPTY', LOADED: 'LOADED', CUTTING: 'CUTTING', READY: 'READY' });
 import { BALANCE } from './Balance.js';
-const TRANSITIONS = { EMPTY: ['LOADED'], LOADED: ['CUTTING'], CUTTING: ['LOADED', 'READY'], READY: ['EMPTY'] };
+const TRANSITIONS = { EMPTY: ['LOADED', 'READY'], LOADED: ['CUTTING', 'EMPTY'], CUTTING: ['LOADED', 'READY'], READY: ['EMPTY'] };
 const PREPARED = { salmon_raw: 'salmon_cut', cucumber_whole: 'cucumber_cut' };
 
 export class CuttingSystem {
@@ -57,6 +57,8 @@ export class CuttingSystem {
       || (ingredient.type === 'cucumber' && ingredient.state === 'cucumber_whole')));
   }
 
+  acceptsPrepared(ingredient) { return Boolean(ingredient && !ingredient.disposed && ['salmon_cut', 'cucumber_cut'].includes(ingredient.state)); }
+
   transition(next) {
     if (this.disposed || !TRANSITIONS[this.state]?.includes(next)) throw new Error(`Transição de corte inválida: ${this.state} -> ${next}`);
     const valid = next === 'EMPTY' ? !this.content
@@ -72,25 +74,25 @@ export class CuttingSystem {
   describe(carrySystem = this.carrySystem) {
     const held = carrySystem.carriedIngredient;
     if (this.state === 'EMPTY') {
-      const valid = this.accepts(held);
+      const valid = this.accepts(held) || this.acceptsPrepared(held);
       return { action: valid ? 'Colocar ingrediente' : held ? 'Ingrediente não pode ser cortado' : 'Bancada vazia', available: Boolean(valid), showKey: Boolean(valid) };
     }
     if (this.state === 'CUTTING') return { action: 'Cortando...', available: false, showKey: false };
     if (held) return { action: 'Mãos ocupadas', available: false, showKey: false };
-    return { action: this.state === 'READY' ? 'Pegar ingrediente cortado' : 'Cortar', available: true, showKey: true };
+    return { action: this.state === 'READY' ? 'Pegar ingrediente cortado' : 'Toque para pegar • segure para cortar', available: true, showKey: true };
   }
 
   load() {
     if (this.disposed || this.state !== 'EMPTY') return this.result(false, 'unavailable', 'A bancada já está ocupada.');
     const ingredient = this.carrySystem.carriedIngredient;
     if (!ingredient) return this.result(false, 'unavailable', 'Bancada vazia');
-    if (!this.accepts(ingredient)) return this.result(false, 'unavailable', 'Ingrediente não pode ser cortado');
+    if (!this.accepts(ingredient) && !this.acceptsPrepared(ingredient)) return this.result(false, 'unavailable', 'Ingrediente não pode ser cortado');
     this.station.storedIngredient = this.carrySystem.transferTo(this.boardAnchor, { location: 'cutting', ownerId: this.station.id });
-    this.cuts = 0;
+    this.cuts = this.acceptsPrepared(ingredient) ? this.requiredCuts : Math.min(this.requiredCuts - 1, ingredient.model.userData.completedCuts ?? 0);
     this.strokeElapsed = 0;
-    this.transition('LOADED');
+    this.transition(this.acceptsPrepared(ingredient) ? 'READY' : 'LOADED');
     this.effects?.update(0, this);
-    return this.result(true, 'load-cutting', 'Ingrediente colocado. Pressione E para cortar.');
+    return this.result(true, 'load-cutting', 'Ingrediente colocado. Toque para pegar; segure a tecla de interação para cortar.');
   }
 
   strike() {
@@ -109,8 +111,8 @@ export class CuttingSystem {
   }
 
   retrieve() {
-    if (this.disposed || this.state !== 'READY') return this.result(false, 'unavailable', 'Finalize os cortes antes de retirar.');
-    if (this.carrySystem.carriedIngredient) return this.result(false, 'unavailable', 'Mãos ocupadas');
+    if (this.disposed || !['LOADED', 'READY'].includes(this.state)) return this.result(false, 'unavailable', 'Aguarde o golpe terminar.');
+    if (this.carrySystem.carriedIngredient || this.carrySystem.carriedTool) return this.result(false, 'unavailable', 'Mãos ocupadas');
     const ingredient = this.content;
     this.carrySystem.attach(ingredient);
     this.station.storedIngredient = null;
@@ -121,7 +123,7 @@ export class CuttingSystem {
     return this.result(true, 'take-cut-ingredient', `Carregando: ${ingredient.name}.`);
   }
 
-  interact(carrySystem = this.carrySystem) {
+  interact(carrySystem = this.carrySystem, { cuttingAction = 'cut' } = {}) {
     if (this.station.fireState === 'burning') return this.result(false, 'burning', 'Estação em chamas!');
     if (carrySystem.carriedTool) return this.result(false, 'unavailable', 'Libere as mãos para preparar ingredientes.');
     if (this.station.interactingPlayer && this.station.interactingPlayer !== carrySystem.player) return this.result(false, 'unavailable', 'Bancada em uso.');
@@ -130,7 +132,7 @@ export class CuttingSystem {
     if (this.disposed) return this.result(false, 'unavailable', 'Bancada indisponível.');
     switch (this.state) {
       case 'EMPTY': return this.load();
-      case 'LOADED': return this.strike();
+      case 'LOADED': return cuttingAction === 'retrieve' ? this.retrieve() : this.strike();
       case 'CUTTING': return this.result(false, 'unavailable', 'Cortando...');
       case 'READY': return this.retrieve();
       default: return this.result(false, 'unavailable', 'Bancada indisponível.');

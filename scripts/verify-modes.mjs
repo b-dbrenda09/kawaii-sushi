@@ -62,7 +62,13 @@ for (const mode of ['solo','coop']) {
    assert.equal(carry.carriedIngredient.ownerId,carry.player.id); assert.equal(assembly.interact(carry).success,true); assert.equal(carry.carriedIngredient,null);
   }
   const first=players.at(-1).carrySystem; assert.equal(assembly.dish.recipeId,recipe.id); assert.equal(assembly.interact(first).success,true);
-  if(players.length===2) assert.equal(assembly.interact(players[0].carrySystem).success,false);
+  if(players.length===2) {
+   const other=players[0].carrySystem;
+   assert.equal(assembly.interact(other).kind,'take-preparation');
+   assert.equal(other.carriedIngredient.ingredients.length,0,'A segunda interação pega apenas um prato vazio, nunca duplica o sushi retirado.');
+   assert.notEqual(other.carriedIngredient.instanceId,first.carriedIngredient.instanceId);
+   other.discard();
+  }
   orders.random=()=>RECIPES.indexOf(recipe)/RECIPES.length;
   const customer={id:recipe.id,state:'WAITING',arrivalComplete:true}; customers.set(customer.id,customer);
   const order=orders.createForCustomer(customer), previousScore=score.score;

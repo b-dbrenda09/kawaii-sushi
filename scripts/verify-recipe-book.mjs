@@ -108,12 +108,13 @@ try {
   await key('keyDown','KeyW','w',87);await press('KeyE','e',69);await press('Space',' ',32);await delay(250);
   assert.equal(await snapshot(),before,'Book must freeze all simulation');
   await key('keyUp','KeyW','w',87);
-  const recipes=await evaluate(`import('/src/game/RecipeSystem.js').then(m=>m.RECIPES.map(r=>({id:r.id,name:r.name,line:r.sequence.map(s=>m.PREPARED_NAMES[s]).join(r.orderIndependent ? ' + ' : ' \u2192 ')})))`);
+  const recipes=await evaluate(`import('/src/game/RecipeSystem.js').then(m=>m.RECIPES.map(r=>({id:r.id,name:r.name,line:'Ingredientes necessários: '+r.sequence.map(s=>m.PREPARED_NAMES[s]).join(' + ')})))`);
   for(let page=0;page<recipes.length;page++){
     assert.equal(await evaluate('document.querySelector(".recipe-book").dataset.recipeId'),recipes[page].id);
     assert.equal(await evaluate('document.querySelector(".recipe-book h2").textContent'),recipes[page].name);
     assert.equal(await evaluate('document.querySelector(".recipe-book-ingredients").textContent'),recipes[page].line);
-    assert.ok(await evaluate('document.querySelector(".recipe-book ol").textContent.includes("E")'));
+    assert.ok(await evaluate('document.querySelector(".recipe-book ul").textContent.includes("E")'));
+    assert.ok(await evaluate('document.querySelector(".recipe-book").textContent.includes("Adicione os ingredientes em qualquer ordem!")'));
     if(page<recipes.length-1)await evaluate('document.querySelector("[data-book-action=next]").click()');
   }
   await evaluate('document.querySelector("[data-book-action=previous]").click()');

@@ -37,7 +37,7 @@ for(const station of world.kitchen.stations.values()) {
  };
  check(assembly.preview);
  for(const recipe of RECIPES) {
-  const sequence=recipe.orderIndependent?['cucumber_cut','nori_sheet','rice_cooked']:recipe.sequence;
+  const sequence=recipe.id==='cucumber_uramaki'?['cucumber_cut','nori_sheet','rice_cooked']:recipe.sequence;
   for(const [i,state] of sequence.entries()) {
    const item=factory.create(state==='rice_cooked'?'rice':state==='salmon_cut'?'salmon':state==='cucumber_cut'?'cucumber':'nori');
    if(state==='rice_cooked')factory.setRiceState(item,state);
@@ -47,7 +47,9 @@ for(const station of world.kitchen.stations.values()) {
    if(!assembly.dish&&state==='cucumber_cut')assert.ok(visual.children.some(mesh=>mesh.material===sushi.materials.cucumber),'Pepino visível antes de arroz/nori');
   }
   assert.equal(assembly.dish.recipeId,recipe.id);assembly.update(.3);check(assembly.dish.model);
-  assert.equal(assembly.interact(carries[1]).success,true);assert.equal(assembly.interact(carries[0]).success,false);
+  assert.equal(assembly.interact(carries[1]).success,true);
+  assert.equal(assembly.interact(carries[0]).kind,'take-preparation');
+  assert.equal(carries[0].carriedIngredient.ingredients.length,0);carries[0].discard();
   // Recolocar e retirar também deve usar o mesmo tapete.
   assert.equal(assembly.interact(carries[1]).success,true);check(assembly.dish.model);
   assembly.interact(carries[0]);carries[0].discard();check(assembly.preview);

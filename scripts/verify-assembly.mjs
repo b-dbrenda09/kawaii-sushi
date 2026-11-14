@@ -14,13 +14,13 @@ import { AssemblySystem } from '../src/game/AssemblySystem.js';
 
 const recipes = new RecipeSystem();
 assert.equal(RECIPES.length, 3);
-assert.equal(recipes.analyze(['rice_cooked']).possible.length, 2);
+assert.equal(recipes.analyze(['rice_cooked']).possible.length, 3);
 assert.equal(recipes.analyze(['rice_cooked']).complete, null);
 assert.deepEqual(recipes.analyze(['rice_cooked']).next, ['salmon_cut', 'nori_sheet', 'cucumber_cut']);
-assert.equal(recipes.analyze(['rice_cooked', 'nori_sheet']).possible[0].id, 'cucumber_uramaki');
+assert.deepEqual(recipes.analyze(['rice_cooked', 'nori_sheet']).possible.map(recipe => recipe.id), ['salmon_maki', 'cucumber_uramaki']);
 assert.equal(recipes.analyze(['salmon_raw']).possible.length, 0);
 const extensible = new RecipeSystem([...RECIPES, { id: 'future', sequence: ['rice_cooked', 'salmon_cut', 'nori_sheet'] }]);
-assert.equal(extensible.analyze(['rice_cooked', 'salmon_cut']).complete, null, 'Uma receita prefixo não pode finalizar antes de ficar inequívoca.');
+assert.equal(extensible.analyze(['rice_cooked', 'salmon_cut'], 'future').complete, null, 'Escolher a receita maior impede finalizar o nigiri antes da alga.');
 
 const world = new Scene(), player = world.player, stations = world.kitchen.stations;
 const station = stations.get('assembly');
@@ -119,7 +119,8 @@ for (const recipe of RECIPES) {
 for (const [type, state] of [['rice', 'rice_raw'], ['rice', 'rice_burnt'], ['salmon', 'salmon_raw'], ['cucumber', 'cucumber_whole']]) {
   carry.attach(factory.create(type, state));
   const held = carry.carriedIngredient;
-  assert.equal(press().success, false); assert.equal(carry.carriedIngredient, held); assert.equal(assembly.state, 'EMPTY'); carry.discard();
+  assert.equal(press().success, true); assert.equal(carry.carriedIngredient, null); assert.equal(assembly.state, 'EMPTY');
+  assert.equal(press().success, true); assert.equal(carry.carriedIngredient, held); carry.discard();
 }
 obtain('rice_cooked'); press();
 const ingredient = assembly.ingredients[0];

@@ -130,6 +130,7 @@ export class Input {
   }
 
   reset() {
+    this.interactionEpoch = (this.interactionEpoch ?? 0) + 1;
     if (this.usesGPS && this.keys.has('KeyW')) this.stopNavigation();
     else this.mouseNavigation?.clearRoute();
     this.actionsBlocked = false;

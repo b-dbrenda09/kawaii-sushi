@@ -20,12 +20,22 @@ export class Customer {
     this.patienceLevel = 'calm';
     this.orderId = null; this.requestedRecipe = null; this.patienceTime = null; this.serviceResult = null;
     this.path = []; this.waypoint = 0; this.speed = 1.35;
+    this.arrivalElapsed = 0; this.arrivalDuration = null;
     this.offset = new Vector3();
   }
 
-  follow(path, state) {
+  follow(path, state, { movementDuration = null } = {}) {
     this.path = path.map((point) => point.clone()); this.waypoint = 0;
     this.state = state;
+    this.speed = 1.35;
+    if (state === CUSTOMER_STATES.WALKING_TO_COUNTER) {
+      this.arrivalElapsed = 0; this.arrivalDuration = null;
+      let previous = this.model.position;
+      this.arrivalPathLength = this.path.reduce((length, point) => {
+        const distance = previous.distanceTo(point); previous = point; return length + distance;
+      }, 0);
+      if (Number.isFinite(movementDuration) && movementDuration > 0) this.speed = this.arrivalPathLength / movementDuration;
+    }
   }
 
   get moving() { return this.waypoint < this.path.length; }
@@ -34,6 +44,8 @@ export class Customer {
   }
 
   update(dt, canMove = true) {
+    // Only updateSimulation advances this clock; pause and Cisco questions freeze it too.
+    if (this.arrivalDuration === null && (this.state === CUSTOMER_STATES.WALKING_TO_COUNTER || this.state === CUSTOMER_STATES.WAITING)) this.arrivalElapsed += dt;
     this.happyRemaining = Math.max(0, (this.happyRemaining ?? 0) - dt);
     this.sadRemaining = Math.max(0, (this.sadRemaining ?? 0) - dt);
     this.elapsed += dt;
@@ -61,6 +73,7 @@ export class Customer {
       this.waitTime += dt;
       this.model.rotation.y = MathUtils.damp(this.model.rotation.y, 0, 9, dt);
     }
+    if (this.arrivalDuration === null && this.arrivalComplete) this.arrivalDuration = this.arrivalElapsed;
     this.animation = walking ? 'WALK' : this.state === CUSTOMER_STATES.WAITING ? 'WAIT' : 'IDLE';
     const { body, head, arms, legs, eyes } = this.rig;
     const phase = this.elapsed * 9;
